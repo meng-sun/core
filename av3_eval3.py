@@ -5,7 +5,7 @@ from av5BN import FLAGS,max_net, with_memory, sigmoid_cross_entropy#,weighted_cr
 from av3_input import launch_enqueue_workers
 
 # set up global parameters
-FLAGS.saved_session = '../summaries//saved_state-59999'
+FLAGS.saved_session = './summaries/saved_statebn-59999'
 
 FLAGS.predictions_file_path = re.sub("netstate","logs",FLAGS.saved_session)
 
@@ -252,7 +252,7 @@ def evaluate_on_train_set():
     y_conv = max_net(x_image_batch, keep_prob)
     
     cross_entropy_mean = tf.Variable(0, dtype=tf.float32)
-    cross_entropy_mean = with_memory(y_conv, y_, sigmoid_cross_entropy, cross_entropy_mean)
+    cross_entropy_mean = with_memory(y_conv, y_, tf.nn.sparse_softmax_cross_entropy_with_logits, cross_entropy_mean)
     #cross_entropy_mean = tf.reduce_mean(tf.nn.sparse_softmax_cross_entropy_with_logits(y_conv,y_))
     #(weighted_cross_entropy_mean_with_labels(y_conv,y_))
 
