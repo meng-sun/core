@@ -174,27 +174,27 @@ def max_net(training, x_image_batch,keep_prob):
         print "input to the first layer dimensions", x_image_with_depth.get_shape()
 
     conv1 = conv_layer(layer_name='conv1_5x5x5', input_tensor=x_image_with_depth, filter_size=[5, 5, 5, 1, 20])
-    h_conv1 = tf.contrib.layers.batch_norm(conv1, decay=0.9, center=True, scale=True, epsilon=1e-8, is_training=training)
+    h_conv1 = tf.contrib.layers.batch_norm(conv1, decay=0.9, center=True, scale=True, epsilon=1e-8, is_training=training, updates_collections=None)
     h_relu1 = relu_layer(layer_name='relu1', input_tensor=h_conv1)
     h_pool1 = pool_layer(layer_name='pool1_2x2x2', input_tensor=h_relu1, ksize=[1, 2, 2, 2, 1], strides=[1, 2, 2, 2, 1])
 
     conv2 = conv_layer(layer_name="conv2_3x3x3", input_tensor=h_pool1, filter_size=[3, 3, 3, 20, 30])
-    h_conv2 = tf.contrib.layers.batch_norm(conv2, decay=0.9, center=True, scale=True, epsilon=1e-8, is_training=training)
+    h_conv2 = tf.contrib.layers.batch_norm(conv2, decay=0.9, center=True, scale=True, epsilon=1e-8, is_training=training, updates_collections=None)
     h_relu2 = relu_layer(layer_name="relu2", input_tensor=h_conv2)
     h_pool2 = pool_layer(layer_name="pool2_2x2x2", input_tensor=h_relu2, ksize=[1, 2, 2, 2, 1], strides=[1, 2, 2, 2, 1])
 
     conv3 = conv_layer(layer_name="conv3_2x2x2", input_tensor=h_pool2, filter_size=[2, 2, 2, 30, 40])
-    h_conv3 = tf.contrib.layers.batch_norm(conv3, decay=0.9, center=True, scale=True, epsilon=1e-8, is_training=training)
+    h_conv3 = tf.contrib.layers.batch_norm(conv3, decay=0.9, center=True, scale=True, epsilon=1e-8, is_training=training, updates_collections=None)
     h_relu3 = relu_layer(layer_name="relu3", input_tensor=h_conv3)
     h_pool3 = pool_layer(layer_name="pool3_2x2x2", input_tensor=h_relu3, ksize=[1, 2, 2, 2, 1], strides=[1, 1, 1, 1, 1])
 
     conv4 = conv_layer(layer_name="conv4_2x2x2", input_tensor=h_pool3, filter_size=[2, 2, 2, 40, 50])
-    h_conv4 = tf.contrib.layers.batch_norm(conv4, decay=0.9, center=True, scale=True, epsilon=1e-8, is_training=training)
+    h_conv4 = tf.contrib.layers.batch_norm(conv4, decay=0.9, center=True, scale=True, epsilon=1e-8, is_training=training, updates_collections=None)
     h_relu4 = relu_layer(layer_name="relu4", input_tensor=h_conv4)
     h_pool4 = pool_layer(layer_name="pool4_2x2x2", input_tensor=h_relu4, ksize=[1, 2, 2, 2, 1], strides=[1, 1, 1, 1, 1])
 
     conv5 = conv_layer(layer_name="conv5_2x2x2", input_tensor=h_pool4, filter_size=[2, 2, 2, 50, 60])
-    h_conv5 = tf.contrib.layers.batch_norm(conv5, decay=0.9, center=True, scale=True, epsilon=1e-8, is_training=training)
+    h_conv5 = tf.contrib.layers.batch_norm(conv5, decay=0.9, center=True, scale=True, epsilon=1e-8, is_training=training,updates_collections=None)
     h_relu5 = relu_layer(layer_name="relu5", input_tensor=h_conv5)
     h_pool5 = pool_layer(layer_name="pool5_2x2x2", input_tensor=h_relu5, ksize=[1, 2, 2, 2, 1], strides=[1, 1, 1, 1, 1])
 
@@ -202,7 +202,7 @@ def max_net(training, x_image_batch,keep_prob):
         h_pool2_flat = tf.reshape(h_pool5, [-1, 10 * 10 * 10 * 60])
 
     fc1 = fc_layer(layer_name="fc1", input_tensor=h_pool2_flat, output_dim=1024)
-    h_fc1 = tf.contrib.layers.batch_norm(fc1, decay=0.9, center=True, scale=True, epsilon=1e-8, is_training=training)
+    h_fc1 = tf.contrib.layers.batch_norm(fc1, decay=0.9, center=True, scale=True, epsilon=1e-8, is_training=training,updates_collections=None)
     h_fc1_relu = relu_layer(layer_name="fc1_relu", input_tensor=h_fc1)
 
     with tf.name_scope("dropout"):
@@ -210,7 +210,7 @@ def max_net(training, x_image_batch,keep_prob):
         h_fc1_drop = tf.nn.dropout(h_fc1_relu, keep_prob)
 
     fc2 = fc_layer(layer_name="fc2", input_tensor=h_fc1_drop, output_dim=256)
-    h_fc2 = tf.contrib.layers.batch_norm(fc2, decay=0.9, center=True, scale=True, epsilon=1e-8, is_training=training)
+    h_fc2 = tf.contrib.layers.batch_norm(fc2, decay=0.9, center=True, scale=True, epsilon=1e-8, is_training=training,updates_collections=None)
     h_fc2_relu = relu_layer(layer_name="fc2_relu", input_tensor=h_fc2)
 
     y_conv = fc_layer(layer_name="out_neuron", input_tensor=h_fc2_relu, output_dim=2)
@@ -431,6 +431,24 @@ def sigmoid_cross_entropy(logits, labels):
     targets = tf.sparse_tensor_to_dense(sparse_targets)
     return tf.reduce_mean(tf.nn.sigmoid_cross_entropy_with_logits(logits, targets))
 
+def _get_bn_vars(sess):
+    "Return values of internal BatchNorm variables"
+    beta = None
+    gamma = None
+    moving_mean = None
+    moving_variance = None
+    for v in tf.all_variables():
+        if v.name == "BatchNorm/beta:0":
+            beta = sess.run(v)
+        elif v.name == "BatchNorm/gamma:0":
+            gamma = sess.run(v)
+        elif v.name == "BatchNorm/moving_mean:0":
+            moving_mean = sess.run(v)
+        elif v.name == "BatchNorm/moving_variance:0":
+            moving_variance = sess.run(v)
+    return beta, gamma, moving_mean, moving_variance
+
+
 def train():
     "train a network"
     #population_mean = tf.Variable(0, dtype=tf.float32)
@@ -502,7 +520,7 @@ def train():
     while not filename_coordinator.stop:
         start = time.time()
         training_error,_ = sess.run([cross_entropy_mean,train_step_run],feed_dict={keep_prob:0.5})
-
+        print _get_bn_vars(sess)
         print "step:", batch_num, "run error:", training_error,\
             "examples per second:", "%.2f" % (FLAGS.batch_size / (time.time() - start))
 
