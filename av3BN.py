@@ -41,12 +41,34 @@ def conv_layer_withBN(layer_name, input_tensor, filter_size, strides=[1, 1, 1, 1
     h_conv = tf.nn.conv3d(input_tensor, W_conv, strides=strides, padding=padding) 
 
     batch_mean, batch_variance = tf.nn.moments(h_conv,[0])
-    h_conv_withBN = (constant * (h_conv - batch_mean) / tf.sqrt(batch_variance + 1e-2)) + b_conv
+    h_conv_withBN = (constant * (h_conv - batch_mean) / tf.sqrt(batch_variance + 1e-6)) + b_conv
 
     tf.histogram_summary(layer_name + '/pooling_output', h_conv_withBN)
     print layer_name,"output dimensions:", h_conv_withBN.get_shape()
     return h_conv_withBN
 
+'''def conv_layer(layer_name, input_tensor, filter_size, strides=[1, 1, 1, 1, 1], padding='SAME'):
+  """makes a simple convolutional layer"""
+  input_depth = filter_size[3]
+  output_depth = filter_size[4]
+  with tf.name_scope(layer_name):
+    with tf.name_scope('weights'):
+      W_conv = weight_variable(filter_size)
+      variable_summaries(W_conv, layer_name + '/weights')
+    with tf.name_scope('biases'):
+      b_conv = tf.zeros(output_depth)
+      variable_summaries(b_conv, layer_name + '/biases')
+
+    constant = tf.ones(output_depth)
+    h_conv = tf.nn.conv3d(input_tensor, W_conv, strides=strides, padding=padding) 
+    #batch_mean, batch_variance = tf.nn.moments(h_conv,[0])
+    h_conv_withBN = (constant * (h_conv - population_mean) / tf.sqrt(population_variance + 1e-6)) + b_conv
+
+    tf.histogram_summary(layer_name + '/pooling_output', h_conv_withBN)
+    print layer_name,"output dimensions:", h_conv_withBN.get_shape()
+    return h_conv_withBN
+
+'''
 def relu_layer(layer_name,input_tensor,act=tf.nn.relu):
   """makes a simple relu layer"""
   with tf.name_scope(layer_name):
@@ -65,6 +87,22 @@ def pool_layer(layer_name,input_tensor,ksize,strides=[1, 1, 1, 1, 1],padding='SA
     print layer_name, "output dimensions:", h_pool.get_shape()
     return h_pool
 
+def conv_layer(layer_name, input_tensor, filter_size, strides=[1, 1, 1, 1, 1], padding='SAME'):
+  """makes a simple convolutional layer"""
+  input_depth = filter_size[3]
+  output_depth = filter_size[4]
+  with tf.name_scope(layer_name):
+    with tf.name_scope('weights'):
+      W_conv = weight_variable(filter_size)
+      variable_summaries(W_conv, layer_name + '/weights')
+    with tf.name_scope('biases'):
+      b_conv = bias_variable([output_depth])
+      variable_summaries(b_conv, layer_name + '/biases')
+    h_conv = tf.nn.conv3d(input_tensor, W_conv, strides=strides, padding=padding) + b_conv
+    tf.histogram_summary(layer_name + '/pooling_output', h_conv)
+    print layer_name,"output dimensions:", h_conv.get_shape()
+    return h_conv
+
 def fc_layer_withBN(layer_name,input_tensor,output_dim):
   """makes a simple fully connected layer"""
   input_dim = int((input_tensor.get_shape())[1])
@@ -80,12 +118,153 @@ def fc_layer_withBN(layer_name,input_tensor,output_dim):
 
       constant = tf.ones(output_dim)
       batch_mean, batch_variance = tf.nn.moments(h_fc,[0])
-      h_fc_withBN = (constant * (h_fc - batch_mean) / tf.sqrt(batch_variance + 1e-2)) + biases
+      h_fc_withBN = (constant * (h_fc - batch_mean) / tf.sqrt(batch_variance + 1e-6)) + biases
       tf.histogram_summary(layer_name + '/fc_output', h_fc_withBN)
     
+    print layer_name, "output dimensions:", h_fc_withBN.get_shape()
+    return h_fc_withBN
+
+
+'''def fc_layer(layer_name,input_tensor,output_dim):
+  """makes a simple fully connected layer"""
+  input_dim = int((input_tensor.get_shape())[1])
+
+  with tf.name_scope(layer_name):
+    weights = weight_variable([input_dim, output_dim])
+    variable_summaries(weights, layer_name + '/weights')
+    with tf.name_scope('biases'):
+      biases = tf.zeros(output_dim)
+      variable_summaries(biases, layer_name + '/biases')
+    with tf.name_scope('Wx_withBN'):
+      h_fc = tf.matmul(input_tensor, weights)
+
+      constant = tf.ones(output_dim)
+      #batch_mean, batch_variance = tf.nn.moments(h_fc,[0])
+      h_fc_withBN = (constant * (h_fc - population_mean) / tf.sqrt(population_variance + 1e-6)) + biases
+      tf.histogram_summary(layer_name + '/fc_output', h_fc_withBN)
+
+    print layer_name, "output dimensions:", h_fc_withBN.get_shape()
+    return h_fc_withBN
+'''
+def fc_layer(layer_name,input_tensor,output_dim):
+  """makes a simple fully connected layer"""
+  input_dim = int((input_tensor.get_shape())[1])
+
+  with tf.name_scope(layer_name):
+    weights = weight_variable([input_dim, output_dim])
+    variable_summaries(weights, layer_name + '/weights')
+    with tf.name_scope('biases'):
+      biases = bias_variable([output_dim])
+      variable_summaries(biases, layer_name + '/biases')
+    with tf.name_scope('Wx_plus_b'):
+      h_fc = tf.matmul(input_tensor, weights) + biases
+      tf.histogram_summary(layer_name + '/fc_output', h_fc)
     print layer_name, "output dimensions:", h_fc.get_shape()
     return h_fc
 
+
+def max_net_for_testing(x_image_batch,keep_prob):
+    "making a simple network that can receive 20x20x20 input images. And output 2 classes"
+    with tf.name_scope('input'):
+        pass
+    with tf.name_scope("input_reshape"):
+        print "image batch dimensions", x_image_batch.get_shape()
+        # formally adding one depth dimension to the input
+        x_image_with_depth = tf.reshape(x_image_batch, [-1, 40, 40, 40, 1])
+        print "input to the first layer dimensions", x_image_with_depth.get_shape()
+
+    h_conv1 = conv_layer(layer_name='conv1_5x5x5', input_tensor=x_image_with_depth, filter_size=[5, 5, 5, 1, 20])
+    h_relu1 = relu_layer(layer_name='relu1', input_tensor=h_conv1)
+    h_pool1 = pool_layer(layer_name='pool1_2x2x2', input_tensor=h_relu1, ksize=[1, 2, 2, 2, 1], strides=[1, 2, 2, 2, 1])
+
+    h_conv2 = conv_layer(layer_name="conv2_3x3x3", input_tensor=h_pool1, filter_size=[3, 3, 3, 20, 30])
+    h_relu2 = relu_layer(layer_name="relu2", input_tensor=h_conv2)
+    h_pool2 = pool_layer(layer_name="pool2_2x2x2", input_tensor=h_relu2, ksize=[1, 2, 2, 2, 1], strides=[1, 2, 2, 2, 1])
+
+    h_conv3 = conv_layer(layer_name="conv3_2x2x2", input_tensor=h_pool2, filter_size=[2, 2, 2, 30, 40])
+    h_relu3 = relu_layer(layer_name="relu3", input_tensor=h_conv3)
+    h_pool3 = pool_layer(layer_name="pool3_2x2x2", input_tensor=h_relu3, ksize=[1, 2, 2, 2, 1], strides=[1, 1, 1, 1, 1])
+
+    h_conv4 = conv_layer(layer_name="conv4_2x2x2", input_tensor=h_pool3, filter_size=[2, 2, 2, 40, 50])
+    h_relu4 = relu_layer(layer_name="relu4", input_tensor=h_conv4)
+    h_pool4 = pool_layer(layer_name="pool4_2x2x2", input_tensor=h_relu4, ksize=[1, 2, 2, 2, 1], strides=[1, 1, 1, 1, 1])
+
+    h_conv5 = conv_layer(layer_name="conv5_2x2x2", input_tensor=h_pool4, filter_size=[2, 2, 2, 50, 60])
+    h_relu5 = relu_layer(layer_name="relu5", input_tensor=h_conv5)
+    h_pool5 = pool_layer(layer_name="pool5_2x2x2", input_tensor=h_relu5, ksize=[1, 2, 2, 2, 1], strides=[1, 1, 1, 1, 1])
+
+    with tf.name_scope("flatten_layer"):
+        h_pool2_flat = tf.reshape(h_pool5, [-1, 10 * 10 * 10 * 60])
+
+    h_fc1 = fc_layer(layer_name="fc1", input_tensor=h_pool2_flat, output_dim=1024)
+    h_fc1_relu = relu_layer(layer_name="fc1_relu", input_tensor=h_fc1)
+
+    with tf.name_scope("dropout"):
+        tf.scalar_summary('dropout_keep_probability', keep_prob)
+        h_fc1_drop = tf.nn.dropout(h_fc1_relu, keep_prob)
+
+    h_fc2 = fc_layer(layer_name="fc2", input_tensor=h_fc1_drop, output_dim=256)
+    h_fc2_relu = relu_layer(layer_name="fc2_relu", input_tensor=h_fc2)
+
+    y_conv = fc_layer(layer_name="out_neuron", input_tensor=h_fc2_relu, output_dim=2)
+
+
+    return y_conv
+
+
+'''def max_net(x_image_batch,keep_prob):
+    "making a simple network that can receive 20x20x20 input images. And output 2 classes"
+    with tf.name_scope('input'):
+        pass
+    with tf.name_scope("input_reshape"):
+        print "image batch dimensions", x_image_batch.get_shape()
+        # formally adding one depth dimension to the input
+        x_image_with_depth = tf.reshape(x_image_batch, [-1, 40, 40, 40, 1])
+        print "input to the first layer dimensions", x_image_with_depth.get_shape()
+
+    #update population statistics
+    update_population_variance = tf.assign(population_variance, population_variance * decay + batch_variance * (1 - decay))
+    update_population_mean = tf.assign(population_mean,population_mean * decay + batch_mean * (1 - decay))
+    with tf.control_dependencies([update_population_mean, update_population_variance]):
+
+        h_conv1 = conv_layer_withBN(layer_name='conv1_5x5x5', input_tensor=x_image_with_depth, filter_size=[5, 5, 5, 1, 20])
+        h_relu1 = relu_layer(layer_name='relu1', input_tensor=h_conv1)
+        h_pool1 = pool_layer(layer_name='pool1_2x2x2', input_tensor=h_relu1, ksize=[1, 2, 2, 2, 1], strides=[1, 2, 2, 2, 1])
+
+        h_conv2 = conv_layer_withBN(layer_name="conv2_3x3x3", input_tensor=h_pool1, filter_size=[3, 3, 3, 20, 30])
+        h_relu2 = relu_layer(layer_name="relu2", input_tensor=h_conv2)
+        h_pool2 = pool_layer(layer_name="pool2_2x2x2", input_tensor=h_relu2, ksize=[1, 2, 2, 2, 1], strides=[1, 2, 2, 2, 1])
+
+        h_conv3 = conv_layer_withBN(layer_name="conv3_2x2x2", input_tensor=h_pool2, filter_size=[2, 2, 2, 30, 40])
+        h_relu3 = relu_layer(layer_name="relu3", input_tensor=h_conv3)
+        h_pool3 = pool_layer(layer_name="pool3_2x2x2", input_tensor=h_relu3, ksize=[1, 2, 2, 2, 1], strides=[1, 1, 1, 1, 1])
+
+        h_conv4 = conv_layer_withBN(layer_name="conv4_2x2x2", input_tensor=h_pool3, filter_size=[2, 2, 2, 40, 50])
+        h_relu4 = relu_layer(layer_name="relu4", input_tensor=h_conv4)
+        h_pool4 = pool_layer(layer_name="pool4_2x2x2", input_tensor=h_relu4, ksize=[1, 2, 2, 2, 1], strides=[1, 1, 1, 1, 1])
+
+        h_conv5 = conv_layer_withBN(layer_name="conv5_2x2x2", input_tensor=h_pool4, filter_size=[2, 2, 2, 50, 60])
+        h_relu5 = relu_layer(layer_name="relu5", input_tensor=h_conv5)
+        h_pool5 = pool_layer(layer_name="pool5_2x2x2", input_tensor=h_relu5, ksize=[1, 2, 2, 2, 1], strides=[1, 1, 1, 1, 1])
+
+        with tf.name_scope("flatten_layer"):
+            h_pool2_flat = tf.reshape(h_pool5, [-1, 10 * 10 * 10 * 60])
+
+        h_fc1 = fc_layer_withBN(layer_name="fc1", input_tensor=h_pool2_flat, output_dim=1024)
+        h_fc1_relu = relu_layer(layer_name="fc1_relu", input_tensor=h_fc1)
+
+        with tf.name_scope("dropout"):
+            tf.scalar_summary('dropout_keep_probability', keep_prob)
+            h_fc1_drop = tf.nn.dropout(h_fc1_relu, keep_prob)
+
+        h_fc2 = fc_layer_withBN(layer_name="fc2", input_tensor=h_fc1_drop, output_dim=256)
+        h_fc2_relu = relu_layer(layer_name="fc2_relu", input_tensor=h_fc2)
+
+        y_conv = fc_layer_withBN(layer_name="out_neuron", input_tensor=h_fc2_relu, output_dim=2)
+
+        return y_conv
+    return None
+'''
 
 def max_net(x_image_batch,keep_prob):
     "making a simple network that can receive 20x20x20 input images. And output 2 classes"
@@ -120,7 +299,7 @@ def max_net(x_image_batch,keep_prob):
     with tf.name_scope("flatten_layer"):
         h_pool2_flat = tf.reshape(h_pool5, [-1, 10 * 10 * 10 * 60])
 
-    h_fc1 = fc_layer_withBN(layer_name="fc1", input_tensor=h_pool2_flat, output_dim=1024)
+    h_fc1 = fc_layer(layer_name="fc1", input_tensor=h_pool2_flat, output_dim=1024)
     h_fc1_relu = relu_layer(layer_name="fc1_relu", input_tensor=h_fc1)
 
     with tf.name_scope("dropout"):
@@ -130,11 +309,8 @@ def max_net(x_image_batch,keep_prob):
     h_fc2 = fc_layer_withBN(layer_name="fc2", input_tensor=h_fc1_drop, output_dim=256)
     h_fc2_relu = relu_layer(layer_name="fc2_relu", input_tensor=h_fc2)
 
-    y_conv = fc_layer_withBN(layer_name="out_neuron", input_tensor=h_fc2_relu, output_dim=2)
-
-    return y_conv
-
-
+    y_conv = fc_layer(layer_name="out_neuron", input_tensor=h_fc2_relu, output_dim=2)
+    return y_conv 
 
 """def weighted_cross_entropy_mean_with_labels(logits,labels,pos_weight=1):
     computes weighted cross entropy mean for a multi class classification.
@@ -255,7 +431,8 @@ def sigmoid_cross_entropy(logits, labels):
 
 def train():
     "train a network"
-
+    population_mean = tf.Variable(0, dtype=tf.float32)
+    population_variance = tf.Variable(0, dtype=tf.float32)
     # create session since everything is happening in one
     sess = tf.Session()
     train_image_queue,filename_coordinator = launch_enqueue_workers(sess=sess, pixel_size=FLAGS.pixel_size, side_pixels=FLAGS.side_pixels, num_workers=FLAGS.num_workers, batch_size=FLAGS.batch_size,
@@ -266,8 +443,8 @@ def train():
     y_conv = max_net(x_image_batch, keep_prob)
 
     #Tensorflow
-    loss = sigmoid_cross_entropy(y_conv, y_)
-    #loss = tf.nn.sparse_softmax_cross_entropy_with_logits(y_conv,y_)
+    #loss = sigmoid_cross_entropy(y_conv, y_)
+    loss = tf.nn.sparse_softmax_cross_entropy_with_logits(y_conv,y_)
     #loss = multiclass_hinge_loss(y_conv, y_)
     #loss = tf.contrib.losses.mean_squared_error(y_conv, y_)
 
@@ -288,8 +465,8 @@ def train():
         # first: evaluate error when labels are randomly shuffled
         #  randomly shuffle along one of the dimensions:
         shuffled_y_ = tf.random_shuffle(y_)
-        #shuffled_cross_entropy_mean = tf.reduce_mean(tf.nn.sparse_softmax_cross_entropy_with_logits(y_conv,shuffled_y_))
-        shuffled_cross_entropy_mean = sigmoid_cross_entropy(y_conv, shuffled_y_)
+        shuffled_cross_entropy_mean = tf.reduce_mean(tf.nn.sparse_softmax_cross_entropy_with_logits(y_conv,shuffled_y_))
+        #shuffled_cross_entropy_mean = sigmoid_cross_entropy(y_conv, shuffled_y_)
     # many small subroutines that are needed to save network state,logs, etc.
     if (FLAGS.saved_session !=0):
         # Note: new saved states go to a new folder for clarity
@@ -360,9 +537,9 @@ class FLAGS:
 
     # data directories
     # path to the csv file with names of images selected for training
-    train_set_file_path = '../labeled_npy/train_set.csv'
+    train_set_file_path = '/pylon1/ci4s8bp/msun4/labeled_npy/train_set.csv'
     # path to the csv file with names of the images selected for testing
-    test_set_file_path = '../unlabeled_npy/database_index.csv'
+    test_set_file_path = '/pylon1/ci4s8bp/msun4/unlabeled_npy/database_index.csv'
     # directory where to write variable summaries
     summaries_dir = './summaries'
     # optional saved session: network from which to load variable states
