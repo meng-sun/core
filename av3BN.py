@@ -3,7 +3,6 @@ import tensorflow as tf
 import numpy as np
 from av3_input import launch_enqueue_workers
 
-
 # telling tensorflow how we want to randomly initialize weights
 def weight_variable(shape):
     initial = tf.truncated_normal(shape, stddev=0.005)
@@ -25,50 +24,6 @@ def variable_summaries(var, name):
     tf.scalar_summary('min/' + name, tf.reduce_min(var))
     tf.histogram_summary(name, var)
 
-def conv_layer_withBN(layer_name, input_tensor, filter_size, strides=[1, 1, 1, 1, 1], padding='SAME'):
-  """makes a simple convolutional layer"""
-  input_depth = filter_size[3]
-  output_depth = filter_size[4]
-  with tf.name_scope(layer_name):
-    with tf.name_scope('weights'):
-      W_conv = weight_variable(filter_size)
-      variable_summaries(W_conv, layer_name + '/weights')
-    with tf.name_scope('biases'):
-      b_conv = tf.zeros(output_depth)
-      variable_summaries(b_conv, layer_name + '/biases')
-
-    constant = tf.ones(output_depth)
-    h_conv = tf.nn.conv3d(input_tensor, W_conv, strides=strides, padding=padding) 
-
-    batch_mean, batch_variance = tf.nn.moments(h_conv,[0])
-    h_conv_withBN = (constant * (h_conv - batch_mean) / tf.sqrt(batch_variance + 1e-6)) + b_conv
-
-    tf.histogram_summary(layer_name + '/pooling_output', h_conv_withBN)
-    print layer_name,"output dimensions:", h_conv_withBN.get_shape()
-    return h_conv_withBN
-
-'''def conv_layer(layer_name, input_tensor, filter_size, strides=[1, 1, 1, 1, 1], padding='SAME'):
-  """makes a simple convolutional layer"""
-  input_depth = filter_size[3]
-  output_depth = filter_size[4]
-  with tf.name_scope(layer_name):
-    with tf.name_scope('weights'):
-      W_conv = weight_variable(filter_size)
-      variable_summaries(W_conv, layer_name + '/weights')
-    with tf.name_scope('biases'):
-      b_conv = tf.zeros(output_depth)
-      variable_summaries(b_conv, layer_name + '/biases')
-
-    constant = tf.ones(output_depth)
-    h_conv = tf.nn.conv3d(input_tensor, W_conv, strides=strides, padding=padding) 
-    #batch_mean, batch_variance = tf.nn.moments(h_conv,[0])
-    h_conv_withBN = (constant * (h_conv - population_mean) / tf.sqrt(population_variance + 1e-6)) + b_conv
-
-    tf.histogram_summary(layer_name + '/pooling_output', h_conv_withBN)
-    print layer_name,"output dimensions:", h_conv_withBN.get_shape()
-    return h_conv_withBN
-
-'''
 def relu_layer(layer_name,input_tensor,act=tf.nn.relu):
   """makes a simple relu layer"""
   with tf.name_scope(layer_name):
@@ -103,49 +58,6 @@ def conv_layer(layer_name, input_tensor, filter_size, strides=[1, 1, 1, 1, 1], p
     print layer_name,"output dimensions:", h_conv.get_shape()
     return h_conv
 
-def fc_layer_withBN(layer_name,input_tensor,output_dim):
-  """makes a simple fully connected layer"""
-  input_dim = int((input_tensor.get_shape())[1])
-
-  with tf.name_scope(layer_name):
-    weights = weight_variable([input_dim, output_dim])
-    variable_summaries(weights, layer_name + '/weights')
-    with tf.name_scope('biases'):
-      biases = tf.zeros(output_dim)
-      variable_summaries(biases, layer_name + '/biases')
-    with tf.name_scope('Wx_withBN'):
-      h_fc = tf.matmul(input_tensor, weights) 
-
-      constant = tf.ones(output_dim)
-      batch_mean, batch_variance = tf.nn.moments(h_fc,[0])
-      h_fc_withBN = (constant * (h_fc - batch_mean) / tf.sqrt(batch_variance + 1e-6)) + biases
-      tf.histogram_summary(layer_name + '/fc_output', h_fc_withBN)
-    
-    print layer_name, "output dimensions:", h_fc_withBN.get_shape()
-    return h_fc_withBN
-
-
-'''def fc_layer(layer_name,input_tensor,output_dim):
-  """makes a simple fully connected layer"""
-  input_dim = int((input_tensor.get_shape())[1])
-
-  with tf.name_scope(layer_name):
-    weights = weight_variable([input_dim, output_dim])
-    variable_summaries(weights, layer_name + '/weights')
-    with tf.name_scope('biases'):
-      biases = tf.zeros(output_dim)
-      variable_summaries(biases, layer_name + '/biases')
-    with tf.name_scope('Wx_withBN'):
-      h_fc = tf.matmul(input_tensor, weights)
-
-      constant = tf.ones(output_dim)
-      #batch_mean, batch_variance = tf.nn.moments(h_fc,[0])
-      h_fc_withBN = (constant * (h_fc - population_mean) / tf.sqrt(population_variance + 1e-6)) + biases
-      tf.histogram_summary(layer_name + '/fc_output', h_fc_withBN)
-
-    print layer_name, "output dimensions:", h_fc_withBN.get_shape()
-    return h_fc_withBN
-'''
 def fc_layer(layer_name,input_tensor,output_dim):
   """makes a simple fully connected layer"""
   input_dim = int((input_tensor.get_shape())[1])
@@ -174,27 +86,27 @@ def max_net(training, x_image_batch,keep_prob):
         print "input to the first layer dimensions", x_image_with_depth.get_shape()
 
     conv1 = conv_layer(layer_name='conv1_5x5x5', input_tensor=x_image_with_depth, filter_size=[5, 5, 5, 1, 20])
-    h_conv1 = tf.contrib.layers.batch_norm(conv1, decay=0.9, center=True, scale=True, epsilon=1e-8, is_training=training, updates_collections=None)
+    h_conv1 = tf.contrib.layers.batch_norm(conv1, decay=0.9, center=True, scale=True, epsilon=1e-8, is_training=training)
     h_relu1 = relu_layer(layer_name='relu1', input_tensor=h_conv1)
     h_pool1 = pool_layer(layer_name='pool1_2x2x2', input_tensor=h_relu1, ksize=[1, 2, 2, 2, 1], strides=[1, 2, 2, 2, 1])
 
     conv2 = conv_layer(layer_name="conv2_3x3x3", input_tensor=h_pool1, filter_size=[3, 3, 3, 20, 30])
-    h_conv2 = tf.contrib.layers.batch_norm(conv2, decay=0.9, center=True, scale=True, epsilon=1e-8, is_training=training, updates_collections=None)
+    h_conv2 = tf.contrib.layers.batch_norm(conv2, decay=0.9, center=True, scale=True, epsilon=1e-8, is_training=training)
     h_relu2 = relu_layer(layer_name="relu2", input_tensor=h_conv2)
     h_pool2 = pool_layer(layer_name="pool2_2x2x2", input_tensor=h_relu2, ksize=[1, 2, 2, 2, 1], strides=[1, 2, 2, 2, 1])
 
     conv3 = conv_layer(layer_name="conv3_2x2x2", input_tensor=h_pool2, filter_size=[2, 2, 2, 30, 40])
-    h_conv3 = tf.contrib.layers.batch_norm(conv3, decay=0.9, center=True, scale=True, epsilon=1e-8, is_training=training, updates_collections=None)
+    h_conv3 = tf.contrib.layers.batch_norm(conv3, decay=0.9, center=True, scale=True, epsilon=1e-8, is_training=training)
     h_relu3 = relu_layer(layer_name="relu3", input_tensor=h_conv3)
     h_pool3 = pool_layer(layer_name="pool3_2x2x2", input_tensor=h_relu3, ksize=[1, 2, 2, 2, 1], strides=[1, 1, 1, 1, 1])
 
     conv4 = conv_layer(layer_name="conv4_2x2x2", input_tensor=h_pool3, filter_size=[2, 2, 2, 40, 50])
-    h_conv4 = tf.contrib.layers.batch_norm(conv4, decay=0.9, center=True, scale=True, epsilon=1e-8, is_training=training, updates_collections=None)
+    h_conv4 = tf.contrib.layers.batch_norm(conv4, decay=0.9, center=True, scale=True, epsilon=1e-8, is_training=training)
     h_relu4 = relu_layer(layer_name="relu4", input_tensor=h_conv4)
     h_pool4 = pool_layer(layer_name="pool4_2x2x2", input_tensor=h_relu4, ksize=[1, 2, 2, 2, 1], strides=[1, 1, 1, 1, 1])
 
     conv5 = conv_layer(layer_name="conv5_2x2x2", input_tensor=h_pool4, filter_size=[2, 2, 2, 50, 60])
-    h_conv5 = tf.contrib.layers.batch_norm(conv5, decay=0.9, center=True, scale=True, epsilon=1e-8, is_training=training,updates_collections=None)
+    h_conv5 = tf.contrib.layers.batch_norm(conv5, decay=0.9, center=True, scale=True, epsilon=1e-8, is_training=training)
     h_relu5 = relu_layer(layer_name="relu5", input_tensor=h_conv5)
     h_pool5 = pool_layer(layer_name="pool5_2x2x2", input_tensor=h_relu5, ksize=[1, 2, 2, 2, 1], strides=[1, 1, 1, 1, 1])
 
@@ -202,7 +114,7 @@ def max_net(training, x_image_batch,keep_prob):
         h_pool2_flat = tf.reshape(h_pool5, [-1, 10 * 10 * 10 * 60])
 
     fc1 = fc_layer(layer_name="fc1", input_tensor=h_pool2_flat, output_dim=1024)
-    h_fc1 = tf.contrib.layers.batch_norm(fc1, decay=0.9, center=True, scale=True, epsilon=1e-8, is_training=training,updates_collections=None)
+    h_fc1 = tf.contrib.layers.batch_norm(fc1, decay=0.9, center=True, scale=True, epsilon=1e-8, is_training=training)
     h_fc1_relu = relu_layer(layer_name="fc1_relu", input_tensor=h_fc1)
 
     with tf.name_scope("dropout"):
@@ -210,111 +122,16 @@ def max_net(training, x_image_batch,keep_prob):
         h_fc1_drop = tf.nn.dropout(h_fc1_relu, keep_prob)
 
     fc2 = fc_layer(layer_name="fc2", input_tensor=h_fc1_drop, output_dim=256)
-    h_fc2 = tf.contrib.layers.batch_norm(fc2, decay=0.9, center=True, scale=True, epsilon=1e-8, is_training=training,updates_collections=None)
+    h_fc2 = tf.contrib.layers.batch_norm(fc2, decay=0.9, center=True, scale=True, epsilon=1e-8, is_training=training)
     h_fc2_relu = relu_layer(layer_name="fc2_relu", input_tensor=h_fc2)
 
     y_conv = fc_layer(layer_name="out_neuron", input_tensor=h_fc2_relu, output_dim=2)
 
 
     return y_conv
+
 '''
-
-def max_net(x_image_batch,keep_prob):
-    "making a simple network that can receive 20x20x20 input images. And output 2 classes"
-    with tf.name_scope('input'):
-        pass
-    with tf.name_scope("input_reshape"):
-        print "image batch dimensions", x_image_batch.get_shape()
-        # formally adding one depth dimension to the input
-        x_image_with_depth = tf.reshape(x_image_batch, [-1, 40, 40, 40, 1])
-        print "input to the first layer dimensions", x_image_with_depth.get_shape()
-
-
-    h_conv1 = conv_layer_withBN(layer_name='conv1_5x5x5', input_tensor=x_image_with_depth, filter_size=[5, 5, 5, 1, 20])
-    h_relu1 = relu_layer(layer_name='relu1', input_tensor=h_conv1)
-    h_pool1 = pool_layer(layer_name='pool1_2x2x2', input_tensor=h_relu1, ksize=[1, 2, 2, 2, 1], strides=[1, 2, 2, 2, 1])
-
-    h_conv2 = conv_layer_withBN(layer_name="conv2_3x3x3", input_tensor=h_pool1, filter_size=[3, 3, 3, 20, 30])
-    h_relu2 = relu_layer(layer_name="relu2", input_tensor=h_conv2)
-    h_pool2 = pool_layer(layer_name="pool2_2x2x2", input_tensor=h_relu2, ksize=[1, 2, 2, 2, 1], strides=[1, 2, 2, 2, 1])
-
-    h_conv3 = conv_layer_withBN(layer_name="conv3_2x2x2", input_tensor=h_pool2, filter_size=[2, 2, 2, 30, 40])
-    h_relu3 = relu_layer(layer_name="relu3", input_tensor=h_conv3)
-    h_pool3 = pool_layer(layer_name="pool3_2x2x2", input_tensor=h_relu3, ksize=[1, 2, 2, 2, 1], strides=[1, 1, 1, 1, 1])
-
-    h_conv4 = conv_layer_withBN(layer_name="conv4_2x2x2", input_tensor=h_pool3, filter_size=[2, 2, 2, 40, 50])
-    h_relu4 = relu_layer(layer_name="relu4", input_tensor=h_conv4)
-    h_pool4 = pool_layer(layer_name="pool4_2x2x2", input_tensor=h_relu4, ksize=[1, 2, 2, 2, 1], strides=[1, 1, 1, 1, 1])
-
-    h_conv5 = conv_layer_withBN(layer_name="conv5_2x2x2", input_tensor=h_pool4, filter_size=[2, 2, 2, 50, 60])
-    h_relu5 = relu_layer(layer_name="relu5", input_tensor=h_conv5)
-    h_pool5 = pool_layer(layer_name="pool5_2x2x2", input_tensor=h_relu5, ksize=[1, 2, 2, 2, 1], strides=[1, 1, 1, 1, 1])
-
-    with tf.name_scope("flatten_layer"):
-        h_pool2_flat = tf.reshape(h_pool5, [-1, 10 * 10 * 10 * 60])
-
-    h_fc1 = fc_layer_withBN(layer_name="fc1", input_tensor=h_pool2_flat, output_dim=1024)
-    h_fc1_relu = relu_layer(layer_name="fc1_relu", input_tensor=h_fc1)
-
-    with tf.name_scope("dropout"):
-        tf.scalar_summary('dropout_keep_probability', keep_prob)
-        h_fc1_drop = tf.nn.dropout(h_fc1_relu, keep_prob)
-
-    h_fc2 = fc_layer_withBN(layer_name="fc2", input_tensor=h_fc1_drop, output_dim=256)
-    h_fc2_relu = relu_layer(layer_name="fc2_relu", input_tensor=h_fc2)
-
-    y_conv = fc_layer_withBN(layer_name="out_neuron", input_tensor=h_fc2_relu, output_dim=2)
-
-    return y_conv
-  
-
-def max_net(x_image_batch,keep_prob):
-    "making a simple network that can receive 20x20x20 input images. And output 2 classes"
-    with tf.name_scope('input'):
-        pass
-    with tf.name_scope("input_reshape"):
-        print "image batch dimensions", x_image_batch.get_shape()
-        # formally adding one depth dimension to the input
-        x_image_with_depth = tf.reshape(x_image_batch, [-1, 40, 40, 40, 1])
-        print "input to the first layer dimensions", x_image_with_depth.get_shape()
-
-    h_conv1 = conv_layer_withBN(layer_name='conv1_5x5x5', input_tensor=x_image_with_depth, filter_size=[5, 5, 5, 1, 20])
-    h_relu1 = relu_layer(layer_name='relu1', input_tensor=h_conv1)
-    h_pool1 = pool_layer(layer_name='pool1_2x2x2', input_tensor=h_relu1, ksize=[1, 2, 2, 2, 1], strides=[1, 2, 2, 2, 1])
-
-    h_conv2 = conv_layer_withBN(layer_name="conv2_3x3x3", input_tensor=h_pool1, filter_size=[3, 3, 3, 20, 30])
-    h_relu2 = relu_layer(layer_name="relu2", input_tensor=h_conv2)
-    h_pool2 = pool_layer(layer_name="pool2_2x2x2", input_tensor=h_relu2, ksize=[1, 2, 2, 2, 1], strides=[1, 2, 2, 2, 1])
-
-    h_conv3 = conv_layer_withBN(layer_name="conv3_2x2x2", input_tensor=h_pool2, filter_size=[2, 2, 2, 30, 40])
-    h_relu3 = relu_layer(layer_name="relu3", input_tensor=h_conv3)
-    h_pool3 = pool_layer(layer_name="pool3_2x2x2", input_tensor=h_relu3, ksize=[1, 2, 2, 2, 1], strides=[1, 1, 1, 1, 1])
-
-    h_conv4 = conv_layer_withBN(layer_name="conv4_2x2x2", input_tensor=h_pool3, filter_size=[2, 2, 2, 40, 50])
-    h_relu4 = relu_layer(layer_name="relu4", input_tensor=h_conv4)
-    h_pool4 = pool_layer(layer_name="pool4_2x2x2", input_tensor=h_relu4, ksize=[1, 2, 2, 2, 1], strides=[1, 1, 1, 1, 1])
-
-    h_conv5 = conv_layer_withBN(layer_name="conv5_2x2x2", input_tensor=h_pool4, filter_size=[2, 2, 2, 50, 60])
-    h_relu5 = relu_layer(layer_name="relu5", input_tensor=h_conv5)
-    h_pool5 = pool_layer(layer_name="pool5_2x2x2", input_tensor=h_relu5, ksize=[1, 2, 2, 2, 1], strides=[1, 1, 1, 1, 1])
-
-    with tf.name_scope("flatten_layer"):
-        h_pool2_flat = tf.reshape(h_pool5, [-1, 10 * 10 * 10 * 60])
-
-    h_fc1 = fc_layer(layer_name="fc1", input_tensor=h_pool2_flat, output_dim=1024)
-    h_fc1_relu = relu_layer(layer_name="fc1_relu", input_tensor=h_fc1)
-
-    with tf.name_scope("dropout"):
-        tf.scalar_summary('dropout_keep_probability', keep_prob)
-        h_fc1_drop = tf.nn.dropout(h_fc1_relu, keep_prob)
-
-    h_fc2 = fc_layer_withBN(layer_name="fc2", input_tensor=h_fc1_drop, output_dim=256)
-    h_fc2_relu = relu_layer(layer_name="fc2_relu", input_tensor=h_fc2)
-
-    y_conv = fc_layer(layer_name="out_neuron", input_tensor=h_fc2_relu, output_dim=2)
-    return y_conv 
-'''
-"""def weighted_cross_entropy_mean_with_labels(logits,labels,pos_weight=1):
+def weighted_cross_entropy_mean_with_labels(logits,labels,pos_weight=1):
     computes weighted cross entropy mean for a multi class classification.
     Applies tf.nn.weighted_cross_entropy_with_logits
     accepts "labels" instead of "targets" as in
@@ -343,12 +160,10 @@ def max_net(x_image_batch,keep_prob):
         weighted_cross_entropy = tf.nn.softmax_cross_entropy_with_logits(logits,targets)
 
         cross_entropy_mean = tf.reduce_mean(weighted_cross_entropy, name='cross_entropy')
-        return cross_entropy_mean"""
+        return cross_entropy_mean
 
 
-"""def weighted_sparse_softmax_cross_entropy_with_logits(logits,labels,class_weights=[1,1]):
-
-
+def weighted_sparse_softmax_cross_entropy_with_logits(logits,labels,class_weights=[1,1]):
     # convert labels to targets first
     # example for 3 classes
     # labels [1, 1, 1, 3, 2]
@@ -394,15 +209,9 @@ def max_net(x_image_batch,keep_prob):
     # multiply one of the columns by a certain number to make misclassification of that class more expensive
     weighted_entropy_mean = tf.reduce_mean(class_weights * simple_entropy)
 
-    return weighted_entropy_mean"""
+    return weighted_entropy_mean
 
-'''def perceptron_loss(logits, targets):
-    num_classes = int(logits.get_shape()[1])
-    cost = tf.nn.sparse_softmax_cross_entropy_with_logits(logits, targets)
-    min_cost = tf.argmin([cost, tf.nn.sparse_softmax_cross_entropy_with_logits(logits, -targets+tf.ones(num_classes))],0)
-    return cost - min_cost'''
-
-'''def multiclass_hinge_loss(logits, labels):
+def multiclass_hinge_loss(logits, labels):
     max_logits = tf.argmax(logits, 1)
     batch_size = int(logits.get_shape()[0])
     num_classes = int(logits.get_shape()[1])
@@ -412,7 +221,7 @@ def max_net(x_image_batch,keep_prob):
     targets = tf.sparse_tensor_to_dense(sparse_targets)
     return tf.reduce_mean(tf.maximum(0., tf.float(1 + max_logits - targets)))
     #tf.contrib.losses.smoothed_hinge_loss(y_conv, y_)
-'''
+
 def multiclass_rmse(logits, labels):
     labels = tf.cast(labels, dtype=tf.int32)
     batch_size = int(logits.get_shape()[0])
@@ -421,7 +230,7 @@ def multiclass_rmse(logits, labels):
     sparse_targets = tf.SparseTensor(indices=indices, values=tf.ones(batch_size, dtype=tf.float32),shape=[batch_size, num_classes])
     targets = tf.sparse_tensor_to_dense(sparse_targets)
     return tf.sqrt(tf.reduce_mean(tf.square(tf.reduce_sum(logits - targets, 1))))
-
+'''
 def sigmoid_cross_entropy(logits, labels):
     labels = tf.cast(labels, dtype=tf.int32)
     batch_size = int(logits.get_shape()[0])
@@ -431,22 +240,20 @@ def sigmoid_cross_entropy(logits, labels):
     targets = tf.sparse_tensor_to_dense(sparse_targets)
     return tf.reduce_mean(tf.nn.sigmoid_cross_entropy_with_logits(logits, targets))
 
-def _get_bn_vars(sess):
-    "Return values of internal BatchNorm variables"
-    beta = None
-    gamma = None
-    moving_mean = None
-    moving_variance = None
+def do_last(sess):
     for v in tf.all_variables():
         if v.name == "BatchNorm/beta:0":
-            beta = sess.run(v)
+            beta = v
+            print "beta is: ", beta.eval(sess)
         elif v.name == "BatchNorm/gamma:0":
-            gamma = sess.run(v)
+            gamma = v
+            print "gamma is: ", gamma.eval(sess)
         elif v.name == "BatchNorm/moving_mean:0":
-            moving_mean = sess.run(v)
+            moving_mean = v
+            print "moving_mean is: ", moving_mean.eval(sess)
         elif v.name == "BatchNorm/moving_variance:0":
-            moving_variance = sess.run(v)
-    return beta, gamma, moving_mean, moving_variance
+            moving_variance = v
+            print "moving_variance is: ", moving_variance.eval(sess)
 
 
 def train():
@@ -455,13 +262,25 @@ def train():
     #population_variance = tf.Variable(0, dtype=tf.float32)
     # create session since everything is happening in one
     sess = tf.Session()
+    #sess.run(tf.initialize_all_variables())
+    #time.sleep(10)
+    sess.run(tf.initialize_local_variables())
+    sess.run(tf.initialize_all_variables())
+
+    sess.run(tf.initialize_variables(tf.model_variables()))
+    
+    update_ops = tf.get_collection(tf.GraphKeys.UPDATE_OPS)
+    if update_ops:
+        updates = tf.group(update_ops)
+        total_loss = tf.control_flow_ops.with_dependencies([updates], total_loss)
+
     train_image_queue,filename_coordinator = launch_enqueue_workers(sess=sess, pixel_size=FLAGS.pixel_size, side_pixels=FLAGS.side_pixels, num_workers=FLAGS.num_workers, batch_size=FLAGS.batch_size,
                                          database_index_file_path=FLAGS.train_set_file_path, num_epochs=FLAGS.num_epochs)
 
     y_, x_image_batch,_,_ = train_image_queue.dequeue_many(FLAGS.batch_size)
     keep_prob = tf.placeholder(tf.float32)
     y_conv = max_net(True,x_image_batch, keep_prob)
-
+    ###sess.run(tf.initialize_model_variables())
     #Tensorflow
     #loss = sigmoid_cross_entropy(y_conv, y_)
     #update population statistics
@@ -483,8 +302,8 @@ def train():
     cross_entropy_mean = tf.reduce_mean(loss)
 
     with tf.name_scope('train'):
-        tf.scalar_summary('weighted cross entropy mean', cross_entropy_mean)
-        train_step_run = tf.train.AdamOptimizer(1e-4).minimize(loss)
+       tf.scalar_summary('weighted cross entropy mean', cross_entropy_mean)
+       train_step_run = tf.train.AdamOptimizer(1e-4).minimize(loss)
 
     with tf.name_scope('evaluate_predictions'):
         # first: evaluate error when labels are randomly shuffled
@@ -503,9 +322,6 @@ def train():
         # Create a saver.
         saver = tf.train.Saver(tf.all_variables())
 
-
-
-
     # merge all summaries
     merged_summaries = tf.merge_all_summaries()
     # create a _log writer object
@@ -513,17 +329,19 @@ def train():
     # test_writer = tf.train.SummaryWriter(FLAGS.summaries_dir + '/test' + str(FLAGS.run_index))
 
 
-    # initialize all variables
-    sess.run(tf.initialize_all_variables())
 
+    sess.run(tf.initialize_all_variables())
+    sess.run(tf.initialize_local_variables())
+    sess.run(tf.initialize_variables(tf.model_variables())) 
     batch_num = 0
     while not filename_coordinator.stop:
+    #while batch_num<3: 
         start = time.time()
         training_error,_ = sess.run([cross_entropy_mean,train_step_run],feed_dict={keep_prob:0.5})
-        print _get_bn_vars(sess)
+        
         print "step:", batch_num, "run error:", training_error,\
             "examples per second:", "%.2f" % (FLAGS.batch_size / (time.time() - start))
-
+        #print _get_bn_vars(sess)
         # once in a thousand batches calculate correct predictions
         if (batch_num % 1000 == 999):
             # evaluate and print a few things
@@ -537,8 +355,8 @@ def train():
         # exit the loop in case there is something wrong with the setup and model diverged into inf
         assert not np.isnan(training_error), 'Model diverged with loss = NaN'
         batch_num+=1
-
-
+    do_last(sess)
+   
 
 
 class FLAGS:
@@ -562,9 +380,9 @@ class FLAGS:
 
     # data directories
     # path to the csv file with names of images selected for training
-    train_set_file_path = '/home/ubuntu/common/data/kaggle/jan_01/labeled_npy/train_set.csv'
+    train_set_file_path = '/pylon1/ci4s8bp/msun4/labeled_npy/train_set.csv'
     # path to the csv file with names of the images selected for testing
-    test_set_file_path = '/home/ubuntu/common/data/kaggle/dec_20/unlabeled_npy/database_index.csv'
+    test_set_file_path = '/pylon1/ci4s8bp/msun4/unlabeled_npy/database_index.csv'
     # directory where to write variable summaries
     summaries_dir = './summaries'
     # optional saved session: network from which to load variable states
@@ -588,6 +406,6 @@ def main(_):
         tf.gfile.MakeDirs(summaries_dir + "/" + str(FLAGS.run_index) + '_netstate')
         tf.gfile.MakeDirs(summaries_dir + "/" + str(FLAGS.run_index) + '_logs')
     train()
-
+    tf.train.write_graph(sess.graph.as_graph_def(),  '.',  'issue3886.pbtxt')
 if __name__ == '__main__':
     tf.app.run()
