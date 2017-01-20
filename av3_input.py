@@ -68,7 +68,6 @@ def launch_enqueue_workers(sess,pixel_size,side_pixels,num_workers,batch_size,da
        3) creates many workers that collectively pick data from coordinator
        4) each worker randomly rotates and shifts the box around the ligand center (data augmentation)
        5) each worker converts coordinates(sparse tensor) to image(dense tensor) and enqueues it"""
-
     class molecule_class():
         """simple class to store the information about the molecule"""
         coords = np.array([[]])

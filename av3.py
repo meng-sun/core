@@ -307,9 +307,9 @@ class FLAGS:
 
     # data directories
     # path to the csv file with names of images selected for training
-    train_set_file_path = './labeled_npy/train_set.csv'
+    train_set_file_path = '/pylon1/ci4s8bp/msun4/labeled_npy/train_set.csv'
     # path to the csv file with names of the images selected for testing
-    test_set_file_path = './unlabeled_npy/database_index.csv'
+    test_set_file_path = '/pylon1/ci4s8bp/msun4/unlabeled_npy/database_index.csv'
     # directory where to write variable summaries
     summaries_dir = './summaries'
     # optional saved session: network from which to load variable states
