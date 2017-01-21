@@ -42,6 +42,22 @@ def pool_layer(layer_name,input_tensor,ksize,strides=[1, 1, 1, 1, 1],padding='SA
     print layer_name, "output dimensions:", h_pool.get_shape()
     return h_pool
 
+def batch_norm_wrapper(layer_name,inputs, is_training, decay = 0.9, epsilon=1e-8):
+    with tf.name_scope(layer_name):
+        scale = tf.Variable(tf.ones([inputs.get_shape()[-1]]))
+        beta = tf.Variable(tf.zeros([inputs.get_shape()[-1]]))
+        pop_mean = tf.Variable(tf.zeros(inputs.get_shape()[1:]), trainable=False)
+        pop_var = tf.Variable(tf.ones(inputs.get_shape()[1:]), trainable=False)
+
+        if is_training:
+            batch_mean, batch_var = tf.nn.moments(inputs,[0])
+            train_mean = tf.assign(pop_mean,pop_mean * decay + batch_mean * (1 - decay))
+            train_var = tf.assign(pop_var,pop_var * decay + batch_var * (1 - decay))
+            with tf.control_dependencies([train_mean, train_var]):
+                return tf.nn.batch_normalization(inputs,batch_mean, batch_var, beta, scale, epsilon)
+        else:
+            return tf.nn.batch_normalization(inputs,pop_mean, pop_var, beta, scale, epsilon)
+
 def conv_layer(layer_name, input_tensor, filter_size, strides=[1, 1, 1, 1, 1], padding='SAME'):
   """makes a simple convolutional layer"""
   input_depth = filter_size[3]
@@ -86,28 +102,28 @@ def max_net(training, x_image_batch,keep_prob):
         print "input to the first layer dimensions", x_image_with_depth.get_shape()
 
     conv1 = conv_layer(layer_name='conv1_5x5x5', input_tensor=x_image_with_depth, filter_size=[5, 5, 5, 1, 20])
-
-    h_conv1 = tf.contrib.layers.batch_norm(conv1, decay=0.9, center=True, scale=True, epsilon=1e-8, is_training=training,updates_collections=None)
+    h_conv1 = batch_norm_wrapper('bn1',conv1, True, decay=0.9)
     h_relu1 = relu_layer(layer_name='relu1', input_tensor=h_conv1)
     h_pool1 = pool_layer(layer_name='pool1_2x2x2', input_tensor=h_relu1, ksize=[1, 2, 2, 2, 1], strides=[1, 2, 2, 2, 1])
 
     conv2 = conv_layer(layer_name="conv2_3x3x3", input_tensor=h_pool1, filter_size=[3, 3, 3, 20, 30])
-    h_conv2 = tf.contrib.layers.batch_norm(conv2, decay=0.9, center=True, scale=True, epsilon=1e-8, is_training=training)
+    h_conv2 = batch_norm_wrapper('bn2', conv2, True, decay=0.9)
     h_relu2 = relu_layer(layer_name="relu2", input_tensor=h_conv2)
     h_pool2 = pool_layer(layer_name="pool2_2x2x2", input_tensor=h_relu2, ksize=[1, 2, 2, 2, 1], strides=[1, 2, 2, 2, 1])
 
     conv3 = conv_layer(layer_name="conv3_2x2x2", input_tensor=h_pool2, filter_size=[2, 2, 2, 30, 40])
-    h_conv3 = tf.contrib.layers.batch_norm(conv3, decay=0.9, center=True, scale=True, epsilon=1e-8, is_training=training)
+    h_conv3 = batch_norm_wrapper('bn3',conv3, True, decay=0.9)
     h_relu3 = relu_layer(layer_name="relu3", input_tensor=h_conv3)
     h_pool3 = pool_layer(layer_name="pool3_2x2x2", input_tensor=h_relu3, ksize=[1, 2, 2, 2, 1], strides=[1, 1, 1, 1, 1])
 
     conv4 = conv_layer(layer_name="conv4_2x2x2", input_tensor=h_pool3, filter_size=[2, 2, 2, 40, 50])
-    h_conv4 = tf.contrib.layers.batch_norm(conv4, decay=0.9, center=True, scale=True, epsilon=1e-8, is_training=training)
+    h_conv4 = batch_norm_wrapper('bn4',conv4,True,decay=0.9)
     h_relu4 = relu_layer(layer_name="relu4", input_tensor=h_conv4)
     h_pool4 = pool_layer(layer_name="pool4_2x2x2", input_tensor=h_relu4, ksize=[1, 2, 2, 2, 1], strides=[1, 1, 1, 1, 1])
 
     conv5 = conv_layer(layer_name="conv5_2x2x2", input_tensor=h_pool4, filter_size=[2, 2, 2, 50, 60])
-    h_conv5 = tf.contrib.layers.batch_norm(conv5, decay=0.9, center=True, scale=True, epsilon=1e-8, is_training=training)
+    h_conv5 = batch_norm_wrapper('bn5',conv5, True,decay=0.9)
+
     h_relu5 = relu_layer(layer_name="relu5", input_tensor=h_conv5)
     h_pool5 = pool_layer(layer_name="pool5_2x2x2", input_tensor=h_relu5, ksize=[1, 2, 2, 2, 1], strides=[1, 1, 1, 1, 1])
 
@@ -115,7 +131,7 @@ def max_net(training, x_image_batch,keep_prob):
         h_pool2_flat = tf.reshape(h_pool5, [-1, 10 * 10 * 10 * 60])
 
     fc1 = fc_layer(layer_name="fc1", input_tensor=h_pool2_flat, output_dim=1024)
-    h_fc1 = tf.contrib.layers.batch_norm(fc1, decay=0.9, center=True, scale=True, epsilon=1e-8, is_training=training)
+    h_fc1 = batch_norm_wrapper('bnf1',fc1, True, decay =0.9)
     h_fc1_relu = relu_layer(layer_name="fc1_relu", input_tensor=h_fc1)
 
     with tf.name_scope("dropout"):
@@ -123,7 +139,7 @@ def max_net(training, x_image_batch,keep_prob):
         h_fc1_drop = tf.nn.dropout(h_fc1_relu, keep_prob)
 
     fc2 = fc_layer(layer_name="fc2", input_tensor=h_fc1_drop, output_dim=256)
-    h_fc2 = tf.contrib.layers.batch_norm(fc2, decay=0.9, center=True, scale=True, epsilon=1e-8, is_training=training)
+    h_fc2 = batch_norm_wrapper('bnf2',fc2, True, decay=0.9)
     h_fc2_relu = relu_layer(layer_name="fc2_relu", input_tensor=h_fc2)
 
     y_conv = fc_layer(layer_name="out_neuron", input_tensor=h_fc2_relu, output_dim=2)
@@ -241,21 +257,6 @@ def sigmoid_cross_entropy(logits, labels):
     targets = tf.sparse_tensor_to_dense(sparse_targets)
     return tf.reduce_mean(tf.nn.sigmoid_cross_entropy_with_logits(logits, targets))
 
-def do_last(sess):
-    for v in tf.all_variables():
-        if v.name == "BatchNorm/beta:0":
-            beta = v
-            print "beta is: ", beta.eval(sess)
-        elif v.name == "BatchNorm/gamma:0":
-            gamma = v
-            print "gamma is: ", gamma.eval(sess)
-        elif v.name == "BatchNorm/moving_mean:0":
-            moving_mean = v
-            print "moving_mean is: ", moving_mean.eval(sess)
-        elif v.name == "BatchNorm/moving_variance:0":
-            moving_variance = v
-            print "moving_variance is: ", moving_variance.eval(sess)
-
 
 def train():
     "train a network"
@@ -265,15 +266,6 @@ def train():
     sess = tf.Session()
     #sess.run(tf.initialize_all_variables())
     #time.sleep(10)
-    sess.run(tf.initialize_local_variables())
-    sess.run(tf.initialize_all_variables())
-
-    sess.run(tf.initialize_variables(tf.model_variables()))
-    
-    update_ops = tf.get_collection(tf.GraphKeys.UPDATE_OPS)
-    if update_ops:
-        updates = tf.group(update_ops)
-        total_loss = tf.control_flow_ops.with_dependencies([updates], total_loss)
 
     train_image_queue,filename_coordinator = launch_enqueue_workers(sess=sess, pixel_size=FLAGS.pixel_size, side_pixels=FLAGS.side_pixels, num_workers=FLAGS.num_workers, batch_size=FLAGS.batch_size,
                                          database_index_file_path=FLAGS.train_set_file_path, num_epochs=FLAGS.num_epochs)
@@ -344,7 +336,7 @@ def train():
             "examples per second:", "%.2f" % (FLAGS.batch_size / (time.time() - start))
         #print _get_bn_vars(sess)
         # once in a thousand batches calculate correct predictions
-        if (batch_num % 1000 == 9):
+        if (batch_num % 1000 == 999):
             # evaluate and print a few things
             print "eval:-------------------------------------------------------------------------------------"
             shuffled_training_error,training_error,train_summary = sess.run([shuffled_cross_entropy_mean,cross_entropy_mean,merged_summaries],feed_dict={keep_prob:1})
@@ -356,22 +348,8 @@ def train():
         # exit the loop in case there is something wrong with the setup and model diverged into inf
         assert not np.isnan(training_error), 'Model diverged with loss = NaN'
         batch_num+=1
-    #print _get_bn_vars(sess)
-    '''for v in tf.all_variables():
-        if v.name == "BatchNorm/beta:0":
-            beta = v
-            print "beta: ", beta.eval(sess)
-        elif v.name == "BatchNorm/gamma:0":
-            gamma = v
-            print "gamma: ", gamma.eval(sess)
-        elif v.name == "BatchNorm/moving_mean:0":
-            moving_mean = v
-            print "moving mean: ", moving_mean.eval(sess)
-        elif v.name == "BatchNorm/moving_variance:0":
-            moving_variance = v
-            print "moving var: ", moving_variance.eval(sess)  
-'''
    
+
 
 class FLAGS:
 
