@@ -174,7 +174,7 @@ def max_net(training, x_image_batch,keep_prob):
         print "input to the first layer dimensions", x_image_with_depth.get_shape()
 
     conv1 = conv_layer(layer_name='conv1_5x5x5', input_tensor=x_image_with_depth, filter_size=[5, 5, 5, 1, 20])
-    h_conv1 = tf.contrib.layers.batch_norm(conv1, decay=0.9, center=True, scale=True, epsilon=1e-8, is_training=training, updates_collections=None)
+    h_conv1 = tf.contrib.layers.batch_norm(conv1, decay=0.9, center=True, scale=True, epsilon=1e-8, is_training=training,updates_collections=None)
     h_relu1 = relu_layer(layer_name='relu1', input_tensor=h_conv1)
     h_pool1 = pool_layer(layer_name='pool1_2x2x2', input_tensor=h_relu1, ksize=[1, 2, 2, 2, 1], strides=[1, 2, 2, 2, 1])
 
@@ -440,6 +440,7 @@ def _get_bn_vars(sess):
     for v in tf.all_variables():
         if v.name == "BatchNorm/beta:0":
             beta = sess.run(v)
+            print v.get_shape()
         elif v.name == "BatchNorm/gamma:0":
             gamma = sess.run(v)
         elif v.name == "BatchNorm/moving_mean:0":
@@ -505,7 +506,6 @@ def train():
 
 
 
-
     # merge all summaries
     merged_summaries = tf.merge_all_summaries()
     # create a _log writer object
@@ -517,15 +517,16 @@ def train():
     sess.run(tf.initialize_all_variables())
 
     batch_num = 0
-    while not filename_coordinator.stop:
+    while batch_num<10:
+    #while not filename_coordinator.stop:
         start = time.time()
         training_error,_ = sess.run([cross_entropy_mean,train_step_run],feed_dict={keep_prob:0.5})
-        print _get_bn_vars(sess)
+        #print _get_bn_vars(sess)
         print "step:", batch_num, "run error:", training_error,\
             "examples per second:", "%.2f" % (FLAGS.batch_size / (time.time() - start))
 
         # once in a thousand batches calculate correct predictions
-        if (batch_num % 1000 == 999):
+        if (batch_num % 1000 == 9):
             # evaluate and print a few things
             print "eval:-------------------------------------------------------------------------------------"
             shuffled_training_error,training_error,train_summary = sess.run([shuffled_cross_entropy_mean,cross_entropy_mean,merged_summaries],feed_dict={keep_prob:1})
@@ -537,10 +538,21 @@ def train():
         # exit the loop in case there is something wrong with the setup and model diverged into inf
         assert not np.isnan(training_error), 'Model diverged with loss = NaN'
         batch_num+=1
-
-
-
-
+    #print _get_bn_vars(sess)
+    '''for v in tf.all_variables():
+        if v.name == "BatchNorm/beta:0":
+            beta = v
+            print "beta: ", beta.eval(sess)
+        elif v.name == "BatchNorm/gamma:0":
+            gamma = v
+            print "gamma: ", gamma.eval(sess)
+        elif v.name == "BatchNorm/moving_mean:0":
+            moving_mean = v
+            print "moving mean: ", moving_mean.eval(sess)
+        elif v.name == "BatchNorm/moving_variance:0":
+            moving_variance = v
+            print "moving var: ", moving_variance.eval(sess)  
+'''
 class FLAGS:
 
     # important model parameters
