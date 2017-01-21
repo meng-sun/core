@@ -1,13 +1,13 @@
 import time,re
 import tensorflow as tf
 import numpy as np
-from av5BN import FLAGS,max_net, with_memory, sigmoid_cross_entropy#,weighted_cross_entropy_mean_with_labels
+from av3BN import FLAGS,max_net, _get_bn_vars#, with_memory, sigmoid_cross_entropy#,weighted_cross_entropy_mean_with_labels
 from av3_input import launch_enqueue_workers
 
 # set up global parameters
-FLAGS.saved_session = './summaries/saved_statebn-59999'
-
-FLAGS.predictions_file_path = re.sub("netstate","logs",FLAGS.saved_session)
+FLAGS.saved_session = './summaries/35_netstate/saved_state-9'
+FLAGS.predictions_file_path = FLAGS.saved_session
+#FLAGS.predictions_file_path = re.sub("netstate","logs",FLAGS.saved_session)
 
 
 # todo log AUC
@@ -249,19 +249,20 @@ def evaluate_on_train_set():
                                                                     database_index_file_path=FLAGS.test_set_file_path,num_epochs=2)
     y_, x_image_batch,ligand_filename,receptor_filename = train_image_queue.dequeue_many(FLAGS.batch_size)
     keep_prob = tf.placeholder(tf.float32)
-    y_conv = max_net(x_image_batch, keep_prob)
+    y_conv = max_net(False,x_image_batch, keep_prob)
     
-    cross_entropy_mean = tf.Variable(0, dtype=tf.float32)
-    cross_entropy_mean = with_memory(y_conv, y_, tf.nn.sparse_softmax_cross_entropy_with_logits, cross_entropy_mean)
-    #cross_entropy_mean = tf.reduce_mean(tf.nn.sparse_softmax_cross_entropy_with_logits(y_conv,y_))
+    #cross_entropy_mean = tf.Variable(0, dtype=tf.float32)
+    #cross_entropy_mean = with_memory(y_conv, y_, tf.nn.sparse_softmax_cross_entropy_with_logits, cross_entropy_mean)
+    cross_entropy_mean = tf.reduce_mean(tf.nn.sparse_softmax_cross_entropy_with_logits(y_conv,y_))
     #(weighted_cross_entropy_mean_with_labels(y_conv,y_))
 
     # compute softmax over raw predictions
     predictions = tf.nn.softmax(y_conv)[:,1]
-
+    
     # restore variables from sleep
     saver = tf.train.Saver()
     saver.restore(sess,FLAGS.saved_session)
+    #print _get_bn_vars(sess)
 
     # create a variable to store all predictions
     all_predictions = store_predictions()
@@ -271,15 +272,17 @@ def evaluate_on_train_set():
         start = time.time()
 	if (batch_num % 100 == 99):
             time.sleep(1)        
-	my_ligand_filename,my_receptor_filename,my_predictions,labels,my_cross_entropy = sess.run([ligand_filename,receptor_filename,predictions,y_,cross_entropy_mean],feed_dict={keep_prob:1})
+	print _get_bn_vars(sess)   
+
+        my_ligand_filename,my_receptor_filename,my_predictions,labels,my_cross_entropy = sess.run([ligand_filename,receptor_filename,predictions,y_,cross_entropy_mean],feed_dict={keep_prob:1})
 	# write done the av3_score
-	av3_score= np.vstack((my_ligand_filename,my_receptor_filename,my_predictions.astype(str),labels.astype(str)))
-        av3_score_list = av3_score.transpose().tolist()
-        with open(FLAGS.predictions_file_path+"_av3_eval_score.csv","a") as fout:
-            for entry in av3_score_list:
-                fout.write(','.join(entry)+'\n')
-        
-	#all_predictions.add_batch(my_ligand_filename,my_receptor_filename,my_predictions,labels)
+        #av3_score= np.vstack((my_ligand_filename,my_receptor_filename,my_predictions.astype(str),labels.astype(str)))
+        #av3_score_list = av3_score.transpose().tolist()
+        #with open(FLAGS.predictions_file_path+"_av3_eval_score.csv","a") as fout:
+        #    for entry in av3_score_list:
+        #        fout.write(','.join(entry)+'\n')     
+
+        all_predictions.add_batch(my_ligand_filename,my_receptor_filename,my_predictions,labels)
         print "step:", batch_num, "test error:", my_cross_entropy, "examples per second:", "%.2f" % (FLAGS.batch_size / (time.time() - start))
 
         batch_num +=1
