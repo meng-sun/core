@@ -85,7 +85,7 @@ def assign_label_from_path(ligand_file_path):                                   
         if label == None:
             label = 0
         else:
-            raise Exception('can not assign two labels to one example:')
+           raise Exception('can not assign two labels to one example:')
 
     if re.search('/ligands/',ligand_file_path):
         if label == None:
@@ -226,10 +226,10 @@ def prepare_labeled_npy():
     split_into_train_and_test_sets(database_index_path='../datasets/labeled_npy',train_set_div=1,replicate_positives=20)
 
 def prepare_unlabeled_npy():
-    write_database_index_file(database_path='../datasets/unlabeled_npy',database_index_path='../datasets/unlabeled_npy',lig_dirs=["ligands"])
-    split_into_train_and_test_sets(database_index_path='../datasets/unlabeled_npy',train_set_div=0)
+    write_database_index_file(database_path='/home/ubuntu/common/data/kaggle/jan_01/unlabeled_npy',database_index_path='/home/ubuntu/common/data/kaggle/jan_01/unlabeled_npy',lig_dirs=["ligands"])
+    split_into_train_and_test_sets(database_index_path='/home/ubuntu/common/data/kaggle/jan_01/unlabeled_npy',train_set_div=0)
 
-prepare_labeled_pdb()
+#prepare_labeled_pdb()
 #prepare_labeled_npy()
-#prepare_unlabeled_npy()
+prepare_unlabeled_npy()
 

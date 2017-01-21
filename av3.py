@@ -301,15 +301,15 @@ class FLAGS:
 
     # parameters to optimize runs on different machines for speed/performance
     # number of vectors(images) in one batch
-    batch_size = 50
+    batch_size = 10
     # number of background processes to fill the queue with images
     num_workers = 32
 
     # data directories
     # path to the csv file with names of images selected for training
-    train_set_file_path = './labeled_npy/train_set.csv'
+    train_set_file_path = '/home/ubuntu/common/data/kaggle/jan_01/labeled_npy/train_set.csv'
     # path to the csv file with names of the images selected for testing
-    test_set_file_path = './unlabeled_npy/database_index.csv'
+    test_set_file_path = '/home/ubuntu/common/data/kaggle/dec_20/unlabeled_npy/database_index.csv'
     # directory where to write variable summaries
     summaries_dir = './summaries'
     # optional saved session: network from which to load variable states
