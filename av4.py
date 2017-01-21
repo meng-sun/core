@@ -1,8 +1,6 @@
 import time,os
 import tensorflow as tf
-import numpy as np
-from av3_input import launch_enqueue_workers
-
+from av4_input import image_and_label_queue
 
 # telling tensorflow how we want to randomly initialize weights
 def weight_variable(shape):
@@ -83,7 +81,7 @@ def max_net(x_image_batch,keep_prob):
     with tf.name_scope("input_reshape"):
         print "image batch dimensions", x_image_batch.get_shape()
         # formally adding one depth dimension to the input
-        x_image_with_depth = tf.reshape(x_image_batch, [-1, 40, 40, 40, 1])
+        x_image_with_depth = tf.reshape(x_image_batch, [-1, 20, 20, 20, 1])
         print "input to the first layer dimensions", x_image_with_depth.get_shape()
 
     h_conv1 = conv_layer(layer_name='conv1_5x5x5', input_tensor=x_image_with_depth, filter_size=[5, 5, 5, 1, 20])
@@ -107,7 +105,7 @@ def max_net(x_image_batch,keep_prob):
     h_pool5 = pool_layer(layer_name="pool5_2x2x2", input_tensor=h_relu5, ksize=[1, 2, 2, 2, 1], strides=[1, 1, 1, 1, 1])
 
     with tf.name_scope("flatten_layer"):
-        h_pool2_flat = tf.reshape(h_pool5, [-1, 10 * 10 * 10 * 60])
+        h_pool2_flat = tf.reshape(h_pool5, [-1, 5 * 5 * 5 * 60])
 
     h_fc1 = fc_layer(layer_name="fc1", input_tensor=h_pool2_flat, output_dim=1024)
     h_fc1_relu = relu_layer(layer_name="fc1_relu", input_tensor=h_fc1)
@@ -125,101 +123,25 @@ def max_net(x_image_batch,keep_prob):
 
 
 
-"""def weighted_cross_entropy_mean_with_labels(logits,labels,pos_weight=1):
-    computes weighted cross entropy mean for a multi class classification.
-    Applies tf.nn.weighted_cross_entropy_with_logits
-    accepts "labels" instead of "targets" as in
-    tf.nn.sparse_softmax_cross_entropy_with_logits
-
-    Note: classes are independent
-
-    with tf.name_scope('weighted_cross_entropy_mean'):
-        # convert labels to targets first
-        # example for 3 classes
-        # labels [1, 1, 1, 3, 2]
-        # targets [1 0 0]
-        # [1 0 0]
-        # [1 0 0]
-        # [0 0 1]
-        # [0 1 0]
-
-        batch_size = int(logits.get_shape()[0])
-        num_classes = int(logits.get_shape()[1])
-        labels = tf.cast(labels, dtype=tf.int32)
-        indices = tf.cast(tf.pack((tf.range(0, batch_size), labels), axis=1), dtype=tf.int64)
-        sparse_targets = tf.SparseTensor(indices=indices, values=tf.ones(batch_size, dtype=tf.float32),shape=[batch_size, num_classes])
-        targets = tf.sparse_tensor_to_dense(sparse_targets)
-
-        # weighted_cross_entropy = tf.nn.weighted_cross_entropy_with_logits(logits,targets, pos_weight=pos_weight, name=None)
-        weighted_cross_entropy = tf.nn.softmax_cross_entropy_with_logits(logits,targets)
-
-        cross_entropy_mean = tf.reduce_mean(weighted_cross_entropy, name='cross_entropy')
-        return cross_entropy_mean"""
-
-
-"""def weighted_sparse_softmax_cross_entropy_with_logits(logits,labels,class_weights=[1,1]):
-
-
-    # convert labels to targets first
-    # example for 3 classes
-    # labels [1, 1, 1, 3, 2]
-    # targets [1 0 0]
-    # [1 0 0]
-    # [1 0 0]
-    # [0 0 1]
-    # [0 1 0]
-    batch_size = int(logits.get_shape()[0])
-    num_classes = int(logits.get_shape()[1])
-
-    labels = tf.cast(labels,dtype=tf.int32)
-
-    indices = tf.cast(tf.pack((tf.range(0,batch_size),labels),axis=1),dtype=tf.int64)
-
-    sparse_targets = tf.SparseTensor(indices=indices, values=tf.ones(batch_size,dtype=tf.float32),shape=[batch_size,num_classes])
-    targets = tf.sparse_tensor_to_dense(sparse_targets)
-    # now we have targets instead of labels
-
-    # formula:
-    # ent = targets * -log(softmax(logits)) = targets * -log(softmax(x))
-    # ent = targets * -log(e**x/sum(e**x))
-    # ent = targets * -(x - log(sum(e**x))
-    # ent = targets * -(x - soft_maximum_x)
-
-    # soft maximum formula is: soft_maximum_x = log(sum e**x))
-    # is numerically unstable because: e**x easily goes to infinity and causes overflow
-    # stable way to compute
-    # if we shift by some constant K
-    # log(e**x1 + e**x2 + e**x3...) = K + log((e**x1)/K + (e**x2)/K + (e**x3)/K)
-    # K + log (e**(x1-K) + e**(x2-K) + e**(x3-K)+...)
-    # now is we substitute K to the maximum of all terms
-    # if K = max(x), there is no overflow since all (x-K) are negative
-    # and e** of negative number is small and will not overflow
-    # log(sum(e**x)) = max + log(e**(x1-max) + e**(x2-max) + e**..)
-
-    # find maximum for every row and make it K
-    max_logits = tf.reduce_max(logits, reduction_indices=1)
-    # compute soft maximum
-    soft_maximum_x = max_logits + tf.log(tf.reduce_sum(tf.exp(logits - tf.tile(tf.reshape(max_logits,shape=[batch_size,1]),multiples=[1,num_classes])),1))
-    # compute simple cross entropy entropy
-    simple_entropy = targets * -(logits - tf.tile(tf.reshape(soft_maximum_x,shape=[batch_size,1]),multiples=[1,num_classes]))
-    # multiply one of the columns by a certain number to make misclassification of that class more expensive
-    weighted_entropy_mean = tf.reduce_mean(class_weights * simple_entropy)
-
-    return weighted_entropy_mean"""
-
-
 
 def train():
     "train a network"
 
     # create session since everything is happening in one
     sess = tf.Session()
-    train_image_queue,filename_coordinator = launch_enqueue_workers(sess=sess, pixel_size=FLAGS.pixel_size, side_pixels=FLAGS.side_pixels, num_workers=FLAGS.num_workers, batch_size=FLAGS.batch_size,
-                                         database_index_file_path=FLAGS.train_set_file_path, num_epochs=FLAGS.num_epochs)
+    # TODO: write atoms in layers of depth
 
-    y_, x_image_batch,_,_ = train_image_queue.dequeue_many(FLAGS.batch_size)
+    _,y_,x_image_batch = image_and_label_queue(sess=sess,batch_size=FLAGS.batch_size,
+                                                pixel_size=FLAGS.pixel_size,side_pixels=FLAGS.side_pixels,
+                                                num_threads=FLAGS.num_threads,database_path=FLAGS.database_path)
+
+
+
+
+    float_image_batch = tf.cast(x_image_batch,tf.float32)
+
     keep_prob = tf.placeholder(tf.float32)
-    y_conv = max_net(x_image_batch, keep_prob)
+    y_conv = max_net(float_image_batch,keep_prob)
 
     cross_entropy = tf.nn.sparse_softmax_cross_entropy_with_logits(y_conv,y_)
     cross_entropy_mean = tf.reduce_mean(cross_entropy)
@@ -228,92 +150,52 @@ def train():
         tf.scalar_summary('weighted cross entropy mean', cross_entropy_mean)
         train_step_run = tf.train.AdamOptimizer(1e-4).minimize(cross_entropy)
 
-    with tf.name_scope('evaluate_predictions'):
-        # first: evaluate error when labels are randomly shuffled
-        #  randomly shuffle along one of the dimensions:
-        shuffled_y_ = tf.random_shuffle(y_)
-        shuffled_cross_entropy_mean = tf.reduce_mean(tf.nn.sparse_softmax_cross_entropy_with_logits(y_conv,shuffled_y_))
+    coord = tf.train.Coordinator()
+    threads = tf.train.start_queue_runners(sess=sess, coord=coord)
 
+    # re-initialize all variables (two thread veriables were initialized before)
+    sess.run(tf.global_variables_initializer())
 
-
-
-    # many small subroutines that are needed to save network state,logs, etc.
-    if (FLAGS.saved_session !=0):
-        # Note: new saved states go to a new folder for clarity
-        # restore variables from sleep
-	print " restoring variables from sleep"
-        saver = tf.train.Saver()
-        saver.restore(sess, FLAGS.saved_session)
-    else:
-        # Create a saver.
-        saver = tf.train.Saver(tf.all_variables())
-
-
-
-
-    # merge all summaries
-    merged_summaries = tf.merge_all_summaries()
-    # create a _log writer object
-    train_writer = tf.train.SummaryWriter((FLAGS.summaries_dir + '/' + str(FLAGS.run_index) + "_train"), sess.graph)
-    # test_writer = tf.train.SummaryWriter(FLAGS.summaries_dir + '/test' + str(FLAGS.run_index))
-
-
-    # initialize all variables
-    sess.run(tf.initialize_all_variables())
 
     batch_num = 0
-    while not filename_coordinator.stop:
+    while True:
         start = time.time()
-        training_error,_ = sess.run([cross_entropy_mean,train_step_run],feed_dict={keep_prob:0.5})
 
-        print "step:", batch_num, "run error:", training_error,\
-            "examples per second:", "%.2f" % (FLAGS.batch_size / (time.time() - start))
+        #sess.run([y_, x_image_batch], feed_dict={keep_prob: 0.5})
+        training_error = sess.run([train_step_run], feed_dict={keep_prob: 0.5})
+        print "training error:",training_error
+        print "examples per second:", "%.2f" % (50 / (time.time() - start))
 
-        # once in a thousand batches calculate correct predictions
-        if (batch_num % 1000 == 999):
-            # evaluate and print a few things
-            print "eval:-------------------------------------------------------------------------------------"
-            shuffled_training_error,training_error,train_summary = sess.run([shuffled_cross_entropy_mean,cross_entropy_mean,merged_summaries],feed_dict={keep_prob:1})
-            print "step:", batch_num, "run error:",training_error, "shuffled run error:", shuffled_training_error
-            train_writer.add_summary(train_summary, batch_num)
-
-            saver.save(sess,FLAGS.summaries_dir + '/' + str(FLAGS.run_index) + "_netstate/saved_state", global_step=batch_num)
-
-        # exit the loop in case there is something wrong with the setup and model diverged into inf
-        assert not np.isnan(training_error), 'Model diverged with loss = NaN'
         batch_num+=1
-
-
-
 
 class FLAGS:
 
     # important model parameters
     # size of one pixel generated from protein in Angstroms (float)
-    pixel_size = 0.5
+    pixel_size = 1
     # size of the box around the ligand in pixels
-    side_pixels = 40
+    side_pixels = 20
     # weights for each class for the scoring function
-    # weights of [1 10] would mean that errors in a positive class are weighted 10 times more
-    class_weights = [1,1]
     # number of times each example in the dataset will be read
     num_epochs = 20
-
     # parameters to optimize runs on different machines for speed/performance
     # number of vectors(images) in one batch
     batch_size = 10
     # number of background processes to fill the queue with images
-    num_workers = 32
-
+    num_threads = 16
     # data directories
     # path to the csv file with names of images selected for training
+<<<<<<< HEAD:av3.py
     train_set_file_path = '/home/ubuntu/common/data/kaggle/jan_01/labeled_npy/train_set.csv'
     # path to the csv file with names of the images selected for testing
     test_set_file_path = '/home/ubuntu/common/data/kaggle/dec_20/unlabeled_npy/database_index.csv'
+=======
+    database_path = "../datasets/labeled_pdb_av4/**/"
+>>>>>>> ade147002c76f20d4e37a38592c5cad37fd5c6a7:av4.py
     # directory where to write variable summaries
     summaries_dir = './summaries'
     # optional saved session: network from which to load variable states
-    saved_session = 0#'./summaries/99_netstate/saved_state-15999'
+    saved_session = 0
 
 
 

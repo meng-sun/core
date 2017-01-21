@@ -41,7 +41,7 @@ def conv_layer_withBN(layer_name, input_tensor, filter_size, strides=[1, 1, 1, 1
     h_conv = tf.nn.conv3d(input_tensor, W_conv, strides=strides, padding=padding) 
 
     batch_mean, batch_variance = tf.nn.moments(h_conv,[0])
-    h_conv_withBN = (constant * (h_conv - batch_mean) / tf.sqrt(batch_variance + 1e-2)) + b_conv
+    h_conv_withBN = (constant * (h_conv - batch_mean) / tf.sqrt(batch_variance + 1e-8)) + b_conv
 
     tf.histogram_summary(layer_name + '/pooling_output', h_conv_withBN)
     print layer_name,"output dimensions:", h_conv_withBN.get_shape()
@@ -80,7 +80,7 @@ def fc_layer_withBN(layer_name,input_tensor,output_dim):
 
       constant = tf.ones(output_dim)
       batch_mean, batch_variance = tf.nn.moments(h_fc,[0])
-      h_fc_withBN = (constant * (h_fc - batch_mean) / tf.sqrt(batch_variance + 1e-2)) + biases
+      h_fc_withBN = (constant * (h_fc - batch_mean) / tf.sqrt(batch_variance + 1e-8)) + biases
       tf.histogram_summary(layer_name + '/fc_output', h_fc_withBN)
     
     print layer_name, "output dimensions:", h_fc.get_shape()
@@ -271,11 +271,11 @@ def train():
 
     #Tensorflow
     #loss = sigmoid_cross_entropy(y_conv, y_)
-    #loss = tf.nn.sparse_softmax_cross_entropy_with_logits(y_conv,y_)
+    loss = tf.nn.sparse_softmax_cross_entropy_with_logits(y_conv,y_)
     #loss = multiclass_hinge_loss(y_conv, y_)
     #loss = tf.contrib.losses.mean_squared_error(y_conv, y_)
-    loss = tf.Variable(0, dtype=tf.float32)
-    loss = with_memory(y_conv, y_, tf.nn.sparse_softmax_cross_entropy_with_logits, loss)
+    #loss = tf.Variable(0, dtype=tf.float32)
+    #loss = with_memory(y_conv, y_, tf.nn.sparse_softmax_cross_entropy_with_logits, loss)
 #tanh?
 #add weights to each
 #w memory
@@ -293,9 +293,9 @@ def train():
         # first: evaluate error when labels are randomly shuffled
         #  randomly shuffle along one of the dimensions:
         shuffled_y_ = tf.random_shuffle(y_)
-        #shuffled_cross_entropy_mean = tf.reduce_mean(tf.nn.sparse_softmax_cross_entropy_with_logits(y_conv,shuffled_y_))
-	shuffled_cross_entropy_mean = tf.Variable(0, dtype=tf.float32)
-    	shuffled_cross_entropy_mean  = with_memory(y_conv, y_, tf.nn.sparse_softmax_cross_entropy_with_logits, shuffled_cross_entropy_mean )
+        shuffled_cross_entropy_mean = tf.reduce_mean(tf.nn.sparse_softmax_cross_entropy_with_logits(y_conv,shuffled_y_))
+	#shuffled_cross_entropy_mean = tf.Variable(0, dtype=tf.float32)
+    	#shuffled_cross_entropy_mean  = with_memory(y_conv, y_, tf.nn.sparse_softmax_cross_entropy_with_logits, shuffled_cross_entropy_mean )
 
     # many small subroutines that are needed to save network state,logs, etc.
     if (FLAGS.saved_session !=0):
@@ -367,9 +367,9 @@ class FLAGS:
 
     # data directories
     # path to the csv file with names of images selected for training
-    train_set_file_path = '../labeled_npy/train_set.csv'
+    train_set_file_path = '/home/ubuntu/common/data/kaggle/jan_01/labeled_npy/train_set.csv'
     # path to the csv file with names of the images selected for testing
-    test_set_file_path = '../unlabeled_npy/database_index.csv'
+    test_set_file_path = '/home/ubuntu/common/data/kaggle/dec_20/unlabeled_npy/database_index.csv'
     # directory where to write variable summaries
     summaries_dir = './summaries'
     # optional saved session: network from which to load variable states

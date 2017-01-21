@@ -5,7 +5,7 @@ from av3 import FLAGS,max_net#,weighted_cross_entropy_mean_with_labels
 from av3_input import launch_enqueue_workers
 
 # set up global parameters
-FLAGS.saved_session = './summaries/134_netstate/saved_state-62999'
+FLAGS.saved_session = './summaries/21_netstate/saved_state-59999'
 
 FLAGS.predictions_file_path = re.sub("netstate","logs",FLAGS.saved_session)
 
@@ -271,13 +271,13 @@ def evaluate_on_train_set():
             time.sleep(1)        
 	my_ligand_filename,my_receptor_filename,my_predictions,labels,my_cross_entropy = sess.run([ligand_filename,receptor_filename,predictions,y_,cross_entropy_mean],feed_dict={keep_prob:1})
 	# write done the av3_score
-	av3_score= np.vstack((my_ligand_filename,my_receptor_filename,my_predictions.astype(str),labels.astype(str)))
-        av3_score_list = av3_score.transpose().tolist()
-        with open(FLAGS.predictions_file_path+"_av3_eval_score.csv","a") as fout:
-            for entry in av3_score_list:
-                fout.write(','.join(entry)+'\n')
+	#av3_score= np.vstack((my_ligand_filename,my_receptor_filename,my_predictions.astype(str),labels.astype(str)))
+        #av3_score_list = av3_score.transpose().tolist()
+        #with open(FLAGS.predictions_file_path+"_av3_eval_score.csv","a") as fout:
+        #    for entry in av3_score_list:
+        #        fout.write(','.join(entry)+'\n')
         
-	#all_predictions.add_batch(my_ligand_filename,my_receptor_filename,my_predictions,labels)
+	all_predictions.add_batch(my_ligand_filename,my_receptor_filename,my_predictions,labels)
         print "step:", batch_num, "test error:", my_cross_entropy, "examples per second:", "%.2f" % (FLAGS.batch_size / (time.time() - start))
 
         batch_num +=1
