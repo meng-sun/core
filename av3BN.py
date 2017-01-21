@@ -34,6 +34,19 @@ def relu_layer(layer_name,input_tensor,act=tf.nn.relu):
   print layer_name, "output dimensions:", h_relu.get_shape()
   return h_relu
 
+def get_bn_vars(sess):
+    print "this hsould only run once"
+    for v in tf.all_variables():
+        if v.name == "BatchNorm/beta:0":
+            beta = sess.run(v)
+        elif v.name == "BatchNorm/gamma:0":
+            gamma = sess.run(v)
+        elif v.name == "BatchNorm/moving_mean:0":
+            moving_mean = sess.run(v)
+        elif v.name == "BatchNorm/moving_variance:0":
+            moving_variance = sess.run(v)
+    return beta, gamma, moving_mean, moving_variance
+
 def pool_layer(layer_name,input_tensor,ksize,strides=[1, 1, 1, 1, 1],padding='SAME'):
   """makes a simple pooling layer"""
   with tf.name_scope(layer_name):
@@ -87,7 +100,7 @@ def max_net(training, x_image_batch,keep_prob):
 
     conv1 = conv_layer(layer_name='conv1_5x5x5', input_tensor=x_image_with_depth, filter_size=[5, 5, 5, 1, 20])
 
-    h_conv1 = tf.contrib.layers.batch_norm(conv1, decay=0.9, center=True, scale=True, epsilon=1e-8, is_training=training,updates_collections=None)
+    h_conv1 = tf.contrib.layers.batch_norm(conv1, decay=0.9, center=True, scale=True, epsilon=1e-8, is_training=training)
     h_relu1 = relu_layer(layer_name='relu1', input_tensor=h_conv1)
     h_pool1 = pool_layer(layer_name='pool1_2x2x2', input_tensor=h_relu1, ksize=[1, 2, 2, 2, 1], strides=[1, 2, 2, 2, 1])
 
@@ -240,7 +253,7 @@ def sigmoid_cross_entropy(logits, labels):
     sparse_targets = tf.SparseTensor(indices=indices, values=tf.ones(batch_size, dtype=tf.float32),shape=[batch_size, num_classes])
     targets = tf.sparse_tensor_to_dense(sparse_targets)
     return tf.reduce_mean(tf.nn.sigmoid_cross_entropy_with_logits(logits, targets))
-
+"""
 def do_last(sess):
     for v in tf.all_variables():
         if v.name == "BatchNorm/beta:0":
@@ -255,25 +268,13 @@ def do_last(sess):
         elif v.name == "BatchNorm/moving_variance:0":
             moving_variance = v
             print "moving_variance is: ", moving_variance.eval(sess)
-
+"""
 
 def train():
     "train a network"
-    #population_mean = tf.Variable(0, dtype=tf.float32)
-    #population_variance = tf.Variable(0, dtype=tf.float32)
     # create session since everything is happening in one
     sess = tf.Session()
-    #sess.run(tf.initialize_all_variables())
-    #time.sleep(10)
-    sess.run(tf.initialize_local_variables())
-    sess.run(tf.initialize_all_variables())
 
-    sess.run(tf.initialize_variables(tf.model_variables()))
-    
-    update_ops = tf.get_collection(tf.GraphKeys.UPDATE_OPS)
-    if update_ops:
-        updates = tf.group(update_ops)
-        total_loss = tf.control_flow_ops.with_dependencies([updates], total_loss)
 
     train_image_queue,filename_coordinator = launch_enqueue_workers(sess=sess, pixel_size=FLAGS.pixel_size, side_pixels=FLAGS.side_pixels, num_workers=FLAGS.num_workers, batch_size=FLAGS.batch_size,
                                          database_index_file_path=FLAGS.train_set_file_path, num_epochs=FLAGS.num_epochs)
@@ -281,17 +282,7 @@ def train():
     y_, x_image_batch,_,_ = train_image_queue.dequeue_many(FLAGS.batch_size)
     keep_prob = tf.placeholder(tf.float32)
     y_conv = max_net(True,x_image_batch, keep_prob)
-    ###sess.run(tf.initialize_model_variables())
-    #Tensorflow
-    #loss = sigmoid_cross_entropy(y_conv, y_)
-    #update population statistics
-    #decay = 0.9
-    #update_population_variance = tf.assign(population_variance, population_variance * decay + batch_variance * (1 - decay))
-    #update_population_mean = tf.assign(population_mean,population_mean * decay + batch_mean * (1 - decay))
-    #with tf.control_dependencies([update_population_mean, update_population_variance]):
     loss = tf.nn.sparse_softmax_cross_entropy_with_logits(y_conv,y_)
-    #loss = multiclass_hinge_loss(y_conv, y_)
-    #loss = tf.contrib.losses.mean_squared_error(y_conv, y_)
 
 #tanh?
 #add weights to each
@@ -299,7 +290,10 @@ def train():
 #change label
 #clipping
 #train with min of one cost function (at first?) then another?
-    #loss = perceptron_loss(y_conv, y_)
+    # update_ops = tf.get_collection(tf.GraphKeys.UPDATE_OPS)
+    # if update_ops:
+    #    updates = tf.group(update_ops)
+    #    loss = tf.control_flow_ops.with_dependencies([updates],loss)
     cross_entropy_mean = tf.reduce_mean(loss)
 
     with tf.name_scope('train'):
@@ -311,7 +305,6 @@ def train():
         #  randomly shuffle along one of the dimensions:
         shuffled_y_ = tf.random_shuffle(y_)
         shuffled_cross_entropy_mean = tf.reduce_mean(tf.nn.sparse_softmax_cross_entropy_with_logits(y_conv,shuffled_y_))
-        #shuffled_cross_entropy_mean = sigmoid_cross_entropy(y_conv, shuffled_y_)
     # many small subroutines that are needed to save network state,logs, etc.
     if (FLAGS.saved_session !=0):
         # Note: new saved states go to a new folder for clarity
@@ -332,17 +325,19 @@ def train():
 
 
     sess.run(tf.initialize_all_variables())
-    sess.run(tf.initialize_local_variables())
-    sess.run(tf.initialize_variables(tf.model_variables())) 
-    batch_num = 0
+    
+    batch_num = tf.Variable(0)
+    def add():
+        return batch_num +1
+    print get_bn_vars(sess)
     while not filename_coordinator.stop:
-    #while batch_num<3: 
+        print "init"
         start = time.time()
-        training_error,_ = sess.run([cross_entropy_mean,train_step_run],feed_dict={keep_prob:0.5})
         
+        training_error,_ = sess.run([cross_entropy_mean,train_step_run],feed_dict={keep_prob:0.5})
+         
         print "step:", batch_num, "run error:", training_error,\
             "examples per second:", "%.2f" % (FLAGS.batch_size / (time.time() - start))
-        #print _get_bn_vars(sess)
         # once in a thousand batches calculate correct predictions
         if (batch_num % 1000 == 9):
             # evaluate and print a few things
@@ -355,23 +350,7 @@ def train():
 
         # exit the loop in case there is something wrong with the setup and model diverged into inf
         assert not np.isnan(training_error), 'Model diverged with loss = NaN'
-        batch_num+=1
-    #print _get_bn_vars(sess)
-    '''for v in tf.all_variables():
-        if v.name == "BatchNorm/beta:0":
-            beta = v
-            print "beta: ", beta.eval(sess)
-        elif v.name == "BatchNorm/gamma:0":
-            gamma = v
-            print "gamma: ", gamma.eval(sess)
-        elif v.name == "BatchNorm/moving_mean:0":
-            moving_mean = v
-            print "moving mean: ", moving_mean.eval(sess)
-        elif v.name == "BatchNorm/moving_variance:0":
-            moving_variance = v
-            print "moving var: ", moving_variance.eval(sess)  
-'''
-   
+        batch_num = tf.Assign(add)
 
 class FLAGS:
 
@@ -394,9 +373,9 @@ class FLAGS:
 
     # data directories
     # path to the csv file with names of images selected for training
-    train_set_file_path = '/pylon1/ci4s8bp/msun4/labeled_npy/train_set.csv'
+    train_set_file_path = '/home/ubuntu/common/data/kaggle/jan_01/labeled_npy/train_set.csv'
     # path to the csv file with names of the images selected for testing
-    test_set_file_path = '/pylon1/ci4s8bp/msun4/unlabeled_npy/database_index.csv'
+    test_set_file_path = '/home/ubuntu/common/data/kaggle/dec_20/unlabeled_npy/database_index.csv'
     # directory where to write variable summaries
     summaries_dir = './summaries'
     # optional saved session: network from which to load variable states

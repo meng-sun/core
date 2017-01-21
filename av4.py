@@ -131,7 +131,7 @@ def train():
     sess = tf.Session()
     # TODO: write atoms in layers of depth
 
-    _,y_,x_image_batch = image_and_label_queue(sess=sess,batch_size=FLAGS.batch_size,
+    _,y_,x_image_batch,epc = image_and_label_queue(sess=sess,batch_size=FLAGS.batch_size,
                                                 pixel_size=FLAGS.pixel_size,side_pixels=FLAGS.side_pixels,
                                                 num_threads=FLAGS.num_threads,database_path=FLAGS.database_path)
 
@@ -167,6 +167,7 @@ def train():
         print "examples per second:", "%.2f" % (50 / (time.time() - start))
 
         batch_num+=1
+    print "epc", epc.eval(sess)
 
 class FLAGS:
 
@@ -184,14 +185,7 @@ class FLAGS:
     # number of background processes to fill the queue with images
     num_threads = 16
     # data directories
-    # path to the csv file with names of images selected for training
-<<<<<<< HEAD:av3.py
-    train_set_file_path = '/home/ubuntu/common/data/kaggle/jan_01/labeled_npy/train_set.csv'
-    # path to the csv file with names of the images selected for testing
-    test_set_file_path = '/home/ubuntu/common/data/kaggle/dec_20/unlabeled_npy/database_index.csv'
-=======
-    database_path = "../datasets/labeled_pdb_av4/**/"
->>>>>>> ade147002c76f20d4e37a38592c5cad37fd5c6a7:av4.py
+    database_path = "home/ubuntu/maksym/labeled_pdb_av4/**/"
     # directory where to write variable summaries
     summaries_dir = './summaries'
     # optional saved session: network from which to load variable states

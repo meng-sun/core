@@ -2,13 +2,12 @@ import tensorflow as tf
 from glob import glob
 import os,time
 from av4_utils import generate_deep_affine_transform,affine_transform
-
+import random as rand
 
 def index_the_database(database_path):
     """Indexes av4 database and returns two lists of filesystem path: ligand files, and protein files.
     Ligands are assumed to end with _ligand.av4, proteins should be in the same folders with ligands.
     Each protein should have its own folder named similarly to the protein name (in the PDB)."""
-
     ligand_file_list = []
     receptor_file_list = []
     for ligand_file in glob(os.path.join(database_path, "*_ligand.av4")):
@@ -20,7 +19,10 @@ def index_the_database(database_path):
     index_list = range(len(ligand_file_list))
     return index_list,ligand_file_list, receptor_file_list
 
-def read_receptor_and_ligand(filename_queue):
+# TODO move back after testing
+epoch_counter = tf.Variable(0,tf.int32)
+
+def read_receptor_and_ligand(epoch_counter,filename_queue):
     """Reads ligand and protein raw bytes based on the names in the filename queue. Returns tensors with coordinates
     and atoms of ligand and protein for future processing.
     Important: by default it does oversampling of the positive examples based on training epoch."""
@@ -54,14 +56,17 @@ def read_receptor_and_ligand(filename_queue):
     idx = filename_queue[0]
     serialized_ligand = tf.read_file(filename_queue[1])
     serialized_receptor = tf.read_file(filename_queue[2])
-
     # create an epoch counter
     # TODO: break on certain epoch
-    epoch_counter = tf.Variable(0,tf.int32)
-    def incr_epoch(): return epoch_counter+1
-    def keep_epoch(): return epoch_counter
+    #epoch_counter = tf.Variable(0,tf.int32)
+    def incr_epoch():
+        print "incre "
+        return epoch_counter+1
+    def keep_epoch():
+        print "keep "
+        return epoch_counter
+    
     epoch_counter = epoch_counter.assign(tf.cond(tf.equal(idx,0),incr_epoch,keep_epoch))
-
     # decode bytes into meaningful tensors
     ligand_labels, ligand_elements, multiframe_ligand_coords = decode_av4(serialized_ligand)
     receptor_labels, receptor_elements, multiframe_receptor_coords = decode_av4(serialized_receptor)
@@ -92,7 +97,6 @@ def convert_protein_and_ligand_to_image(ligand_elements,ligand_coords,receptor_e
 
     # FIXME abandon ligand when it does not fit into the box (it's kept now)
     # TODO check if indeed it breaks in the last iteration cycle when a good affine transform is found
-
     # max_num_attempts - maximum number of affine transforms for the ligand to be tried
     max_num_attemts = 1000
     # affine_transform_pool_size is the first(batch) dimension of tensor of transition matrices to be returned
@@ -170,7 +174,7 @@ def image_and_label_queue(sess,batch_size,pixel_size,side_pixels,num_threads,dat
     filename_queue = tf.train.slice_input_producer([index_tensor,ligand_files,receptor_files],num_epochs=None,shuffle=True)
 
     # read one receptor and stack of ligands; choose one of the ligands from the stack according to epoch
-    current_frame,label,ligand_elements,ligand_coords,receptor_elements,receptor_coords = read_receptor_and_ligand(filename_queue)
+    current_frame,label,ligand_elements,ligand_coords,receptor_elements,receptor_coords = read_receptor_and_ligand(epoch_counter,filename_queue)
 
     # convert coordinates of ligand and protein into an image
     dense_image = convert_protein_and_ligand_to_image(ligand_elements,ligand_coords,receptor_elements,receptor_coords,side_pixels,pixel_size)
@@ -191,5 +195,5 @@ def image_and_label_queue(sess,batch_size,pixel_size,side_pixels,num_threads,dat
     # create a batch of proteins and ligands to read them together
     multithread_batch = tf.train.batch([current_frame, label, dense_image], batch_size, num_threads=num_threads,capacity=batch_size * 3,shapes=[[], [], [side_pixels, side_pixels, side_pixels]])
 
-    return multithread_batch
+    return multithread_batch, epoch_counter
 
