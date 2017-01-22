@@ -268,14 +268,14 @@ def train():
 
     #Tensorflow
     #test = tf.constant(tf.zeros(FLAGS.batch_size), FLAGS.batch_size)
-    costs = tf.zeros([5, FLAGS.batch_size])
+    #costs = tf.zeros([5, FLAGS.batch_size])
     #print(test.get_shape())
     #test = tf.reshape(test, [50])
     #costs = tf.tile(test, 5)
     #costs = tf.reshape([5,50])
-    loss, costs = with_averaging_filter(y_conv, y_, tf.nn.sparse_softmax_cross_entropy_with_logits, costs)
+    #loss, costs = with_averaging_filter(y_conv, y_, tf.nn.sparse_softmax_cross_entropy_with_logits, costs)
     #loss = sigmoid_cross_entropy(y_conv, y_)
-    #loss = tf.nn.sparse_softmax_cross_entropy_with_logits(y_conv,y_)
+    loss = tf.nn.sparse_softmax_cross_entropy_with_logits(y_conv,y_)
     #loss = multiclass_hinge_loss(y_conv, y_)
     #loss = tf.contrib.losses.mean_squared_error(y_conv, y_)
 
@@ -296,11 +296,11 @@ def train():
         # first: evaluate error when labels are randomly shuffled
         #  randomly shuffle along one of the dimensions:
         shuffled_y_ = tf.random_shuffle(y_)
-        #shuffled_cross_entropy_mean = tf.reduce_mean(tf.nn.sparse_softmax_cross_entropy_with_logits(y_conv,shuffled_y_))
+        shuffled_cross_entropy_mean = tf.reduce_mean(tf.nn.sparse_softmax_cross_entropy_with_logits(y_conv,shuffled_y_))
         #shuffled_cross_entropy_mean = sigmoid_cross_entropy(y_conv, shuffled_y_)
-        shuffled_cross_entropy_mean = tf.zeros([5, FLAGS.batch_size]
+       # shuffled_cross_entropy_mean = tf.zeros([5, FLAGS.batch_size]
         #shuffled_cross_entropy_mean = tf.reshape([5,50])
-        shuffled_loss, shuffled_cross_entropy_mean = with_averaging_filter(y_conv, shuffled_y_, tf.nn.sparse_softmax_cross_entropy_with_logits, shuffled_cross_entropy_mean)
+        #shuffled_loss, shuffled_cross_entropy_mean = with_averaging_filter(y_conv, shuffled_y_, tf.nn.sparse_softmax_cross_entropy_with_logits, shuffled_cross_entropy_mean)
 
     # many small subroutines that are needed to save network state,logs, etc.
     if (FLAGS.saved_session !=0):
@@ -366,17 +366,17 @@ class FLAGS:
 
     # parameters to optimize runs on different machines for speed/performance
     # number of vectors(images) in one batch
-    batch_size = 50
+    batch_size = 20
     # number of background processes to fill the queue with images
     num_workers = 32
 
     # data directories
     # path to the csv file with names of images selected for training
-    train_set_file_path = '../labeled_npy/train_set.csv'
+    train_set_file_path = '/pylon1/ci4s8bp/msun4/labeled_npy/train_set.csv'
     # path to the csv file with names of the images selected for testing
-    test_set_file_path = '../unlabeled_npy/database_index.csv'
+    test_set_file_path = '/pylon1/ci4s8bp/msun4/unlabeled_npy/database_index.csv'
     # directory where to write variable summaries
-    summaries_dir = './test_summaries'
+    summaries_dir = './summaries'
     # optional saved session: network from which to load variable states
     saved_session = 0#'./summaries/99_netstate/saved_state-15999'
 

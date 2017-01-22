@@ -5,7 +5,7 @@ from av3 import FLAGS,max_net#,weighted_cross_entropy_mean_with_labels
 from av3_input import launch_enqueue_workers
 
 # set up global parameters
-FLAGS.saved_session = './summaries/134_netstate/saved_state-62999'
+FLAGS.saved_session = './summaries/21_netstate/saved_state-59999'
 
 FLAGS.predictions_file_path = re.sub("netstate","logs",FLAGS.saved_session)
 
@@ -244,6 +244,12 @@ def evaluate_on_train_set():
 
     # create session all of the evaluation happens in one
     sess = tf.Session()
+
+    # restore variables from sleep
+    saver = tf.train.Saver()
+    saver.restore(sess,FLAGS.saved_session)
+
+
     train_image_queue,filename_coordinator = launch_enqueue_workers(sess=sess,pixel_size=FLAGS.pixel_size,side_pixels=FLAGS.side_pixels,
                                                                     num_workers=FLAGS.num_workers, batch_size=FLAGS.batch_size,
                                                                     database_index_file_path=FLAGS.test_set_file_path,num_epochs=2)
@@ -257,9 +263,6 @@ def evaluate_on_train_set():
     # compute softmax over raw predictions
     predictions = tf.nn.softmax(y_conv)[:,1]
 
-    # restore variables from sleep
-    saver = tf.train.Saver()
-    saver.restore(sess,FLAGS.saved_session)
 
     # create a variable to store all predictions
     all_predictions = store_predictions()
@@ -270,14 +273,14 @@ def evaluate_on_train_set():
 	if (batch_num % 100 == 99):
             time.sleep(1)        
 	my_ligand_filename,my_receptor_filename,my_predictions,labels,my_cross_entropy = sess.run([ligand_filename,receptor_filename,predictions,y_,cross_entropy_mean],feed_dict={keep_prob:1})
-	# write done the av3_score
-	av3_score= np.vstack((my_ligand_filename,my_receptor_filename,my_predictions.astype(str),labels.astype(str)))
-        av3_score_list = av3_score.transpose().tolist()
-        with open(FLAGS.predictions_file_path+"_av3_eval_score.csv","a") as fout:
-            for entry in av3_score_list:
-                fout.write(','.join(entry)+'\n')
+	#write done the av3_score
+	#av3_score= np.vstack((my_ligand_filename,my_receptor_filename,my_predictions.astype(str),labels.astype(str)))
+        #av3_score_list = av3_score.transpose().tolist()
+        #with open(FLAGS.predictions_file_path+"_av3_eval_score.csv","a") as fout:
+        #    for entry in av3_score_list:
+        #        fout.write(','.join(entry)+'\n')
         
-	#all_predictions.add_batch(my_ligand_filename,my_receptor_filename,my_predictions,labels)
+	all_predictions.add_batch(my_ligand_filename,my_receptor_filename,my_predictions,labels)
         print "step:", batch_num, "test error:", my_cross_entropy, "examples per second:", "%.2f" % (FLAGS.batch_size / (time.time() - start))
 
         batch_num +=1

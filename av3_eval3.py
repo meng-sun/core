@@ -1,11 +1,11 @@
 import time,re
 import tensorflow as tf
 import numpy as np
-from av3BN import FLAGS,max_net, with_memory, sigmoid_cross_entropy#,weighted_cross_entropy_mean_with_labels
+from av3BN import FLAGS,max_net#, with_memory, sigmoid_cross_entropy#,weighted_cross_entropy_mean_with_labels
 from av3_input import launch_enqueue_workers
 
 # set up global parameters
-FLAGS.saved_session = './summaries/saved_statebn-59999'
+FLAGS.saved_session = './summaries/15_netstate/saved_state-59999'
 
 FLAGS.predictions_file_path = re.sub("netstate","logs",FLAGS.saved_session)
 
@@ -244,6 +244,10 @@ def evaluate_on_train_set():
 
     # create session all of the evaluation happens in one
     sess = tf.Session()
+
+    sess.run(tf.initialize_all_variables())
+    saver = tf.train.Saver()
+    saver.restore(sess,FLAGS.saved_session)
     train_image_queue,filename_coordinator = launch_enqueue_workers(sess=sess,pixel_size=FLAGS.pixel_size,side_pixels=FLAGS.side_pixels,
                                                                     num_workers=FLAGS.num_workers, batch_size=FLAGS.batch_size,
                                                                     database_index_file_path=FLAGS.test_set_file_path,num_epochs=2)
@@ -260,8 +264,6 @@ def evaluate_on_train_set():
     predictions = tf.nn.softmax(y_conv)[:,1]
 
     # restore variables from sleep
-    saver = tf.train.Saver()
-    saver.restore(sess,FLAGS.saved_session)
 
     # create a variable to store all predictions
     all_predictions = store_predictions()
