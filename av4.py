@@ -1,6 +1,7 @@
 import time,os
 import tensorflow as tf
-from av4_input import epc, image_and_label_queue
+import numpy as np
+from av4_input import image_and_label_queue
 
 # telling tensorflow how we want to randomly initialize weights
 def weight_variable(shape):
@@ -12,70 +13,70 @@ def bias_variable(shape):
     return tf.Variable(initial)
 
 def variable_summaries(var, name):
-  """Attach a lot of summaries to a Tensor."""
-  with tf.name_scope('summaries'):
-    mean = tf.reduce_mean(var)
-    tf.summary.scalar('mean/' + name, mean)
+    """attaches a lot of summaries to a tensor."""
+    with tf.name_scope('summaries'):
+        mean = tf.reduce_mean(var)
+        tf.summary.scalar('mean/' + name, mean)
     with tf.name_scope('stddev'):
-      stddev = tf.sqrt(tf.reduce_mean(tf.square(var - mean)))
-    tf.summary.scalar('stddev/' + name, stddev)
-    tf.summary.scalar('max/' + name, tf.reduce_max(var))
-    tf.summary.scalar('min/' + name, tf.reduce_min(var))
-    tf.summary.histogram(name, var)
+        stddev = tf.sqrt(tf.reduce_mean(tf.square(var - mean)))
+        tf.summary.scalar('stddev/' + name, stddev)
+        tf.summary.scalar('max/' + name, tf.reduce_max(var))
+        tf.summary.scalar('min/' + name, tf.reduce_min(var))
+        tf.summary.histogram(name, var)
 
 def conv_layer(layer_name, input_tensor, filter_size, strides=[1, 1, 1, 1, 1], padding='SAME'):
-  """makes a simple convolutional layer"""
-  input_depth = filter_size[3]
-  output_depth = filter_size[4]
-  with tf.name_scope(layer_name):
-    with tf.name_scope('weights'):
-      W_conv = weight_variable(filter_size)
-      variable_summaries(W_conv, layer_name + '/weights')
-    with tf.name_scope('biases'):
-      b_conv = bias_variable([output_depth])
-      variable_summaries(b_conv, layer_name + '/biases')
-    h_conv = tf.nn.conv3d(input_tensor, W_conv, strides=strides, padding=padding) + b_conv
-    tf.summary.histogram(layer_name + '/pooling_output', h_conv)
+    """makes a simple convolutional layer"""
+    input_depth = filter_size[3]
+    output_depth = filter_size[4]
+    with tf.name_scope(layer_name):
+        with tf.name_scope('weights'):
+            W_conv = weight_variable(filter_size)
+            variable_summaries(W_conv, layer_name + '/weights')
+        with tf.name_scope('biases'):
+            b_conv = bias_variable([output_depth])
+            variable_summaries(b_conv, layer_name + '/biases')
+            h_conv = tf.nn.conv3d(input_tensor, W_conv, strides=strides, padding=padding) + b_conv
+            tf.summary.histogram(layer_name + '/pooling_output', h_conv)
     print layer_name,"output dimensions:", h_conv.get_shape()
     return h_conv
 
 def relu_layer(layer_name,input_tensor,act=tf.nn.relu):
-  """makes a simple relu layer"""
-  with tf.name_scope(layer_name):
-    h_relu = act(input_tensor, name='activation')
-    tf.summary.histogram(layer_name + '/relu_output', h_relu)
-    tf.summary.scalar(layer_name + '/sparsity', tf.nn.zero_fraction(h_relu))
+    """makes a simple relu layer"""
+    with tf.name_scope(layer_name):
+        h_relu = act(input_tensor, name='activation')
+        tf.summary.histogram(layer_name + '/relu_output', h_relu)
+        tf.summary.scalar(layer_name + '/sparsity', tf.nn.zero_fraction(h_relu))
 
-  print layer_name, "output dimensions:", h_relu.get_shape()
-  return h_relu
+    print layer_name, "output dimensions:", h_relu.get_shape()
+    return h_relu
 
 def pool_layer(layer_name,input_tensor,ksize,strides=[1, 1, 1, 1, 1],padding='SAME'):
-  """makes a simple pooling layer"""
-  with tf.name_scope(layer_name):
-    h_pool = tf.nn.max_pool3d(input_tensor,ksize=ksize,strides=strides,padding=padding)
-    tf.summary.histogram(layer_name + '/pooling_output', h_pool)
+    """makes a simple pooling layer"""
+    with tf.name_scope(layer_name):
+        h_pool = tf.nn.max_pool3d(input_tensor,ksize=ksize,strides=strides,padding=padding)
+        tf.summary.histogram(layer_name + '/pooling_output', h_pool)
     print layer_name, "output dimensions:", h_pool.get_shape()
     return h_pool
 
 def fc_layer(layer_name,input_tensor,output_dim):
-  """makes a simple fully connected layer"""
-  input_dim = int((input_tensor.get_shape())[1])
+    """makes a simple fully connected layer"""
+    input_dim = int((input_tensor.get_shape())[1])
 
-  with tf.name_scope(layer_name):
-    weights = weight_variable([input_dim, output_dim])
-    variable_summaries(weights, layer_name + '/weights')
+    with tf.name_scope(layer_name):
+        weights = weight_variable([input_dim, output_dim])
+        variable_summaries(weights, layer_name + '/weights')
     with tf.name_scope('biases'):
-      biases = bias_variable([output_dim])
-      variable_summaries(biases, layer_name + '/biases')
+        biases = bias_variable([output_dim])
+        variable_summaries(biases, layer_name + '/biases')
     with tf.name_scope('Wx_plus_b'):
-      h_fc = tf.matmul(input_tensor, weights) + biases
-      tf.summary.histogram(layer_name + '/fc_output', h_fc)
+        h_fc = tf.matmul(input_tensor, weights) + biases
+        tf.summary.histogram(layer_name + '/fc_output', h_fc)
     print layer_name, "output dimensions:", h_fc.get_shape()
     return h_fc
 
 
 def max_net(x_image_batch,keep_prob):
-    "making a simple network that can receive 20x20x20 input images. And output 2 classes"
+    "makes a simple network that can receive 20x20x20 input images. And output 2 classes"
     with tf.name_scope('input'):
         pass
     with tf.name_scope("input_reshape"):
@@ -122,61 +123,89 @@ def max_net(x_image_batch,keep_prob):
     return y_conv
 
 
-
-
 def train():
     "train a network"
-
-    # create session since everything is happening in one
+    # with the current setup all of the TF's operations are happening in one session
     sess = tf.Session()
-    # TODO: write atoms in layers of depth
 
-    _,y_,x_image_batch = image_and_label_queue(sess=sess,batch_size=FLAGS.batch_size,
+    current_epoch,label_batch,image_batch = image_and_label_queue(sess=sess,batch_size=FLAGS.batch_size,
                                                 pixel_size=FLAGS.pixel_size,side_pixels=FLAGS.side_pixels,
-                                                num_threads=FLAGS.num_threads,
-                                                database_path=FLAGS.database_path)
-
-
-   
-    float_image_batch = tf.cast(x_image_batch,tf.float32)
+                                                num_threads=FLAGS.num_threads,database_path=FLAGS.database_path,
+                                                                  num_epochs=FLAGS.num_epochs)
+    # TODO: write atoms in layers of depth
+    # floating is temporary
+    float_image_batch = tf.cast(image_batch,tf.float32)
 
     keep_prob = tf.placeholder(tf.float32)
-    y_conv = max_net(float_image_batch,keep_prob)
+    predicted_labels= max_net(float_image_batch,keep_prob)
 
-    cross_entropy = tf.nn.sparse_softmax_cross_entropy_with_logits(y_conv,y_)
+    cross_entropy = tf.nn.sparse_softmax_cross_entropy_with_logits(predicted_labels,label_batch)
     cross_entropy_mean = tf.reduce_mean(cross_entropy)
+    tf.summary.scalar('cross entropy mean', cross_entropy_mean)
 
-    with tf.name_scope('train'):
-        tf.summary.scalar('weighted cross entropy mean', cross_entropy_mean)
-        train_step_run = tf.train.AdamOptimizer(1e-4).minimize(cross_entropy)
+    # randomly shuffle along the batch dimension and calculate an error
+    shuffled_labels = tf.random_shuffle(label_batch)
+    shuffled_cross_entropy_mean = tf.reduce_mean(tf.nn.sparse_softmax_cross_entropy_with_logits(predicted_labels,shuffled_labels))
+    tf.summary.scalar('shuffled cross entropy mean', shuffled_cross_entropy_mean)
 
+    # Adam optimizer is a very heart of the network
+    train_step_run = tf.train.AdamOptimizer(1e-4).minimize(cross_entropy)
+
+    # merge all summaries and create a file writer object
+    merged_summaries = tf.summary.merge_all()
+    train_writer = tf.summary.FileWriter((FLAGS.summaries_dir + '/' + str(FLAGS.run_index) + "_train"), sess.graph)
+
+    # create saver to save and load the network state
+    saver = tf.train.Saver()
+    if not FLAGS.saved_session is None:
+        print "Restoring variables from sleep. This may take a while..."
+        saver.restore(sess, FLAGS.saved_session)
+
+    # initialize all variables (two thread variables should have been initialized in av4_input already)
+    sess.run(tf.global_variables_initializer())
+
+    # launch all threads only after the graph is complete and all the variables initialized
+    # previously, there was a hard to find occasional problem where the computations would start on unfinished nodes
+    # IE: lhs shape [] is different from rhs shape [100] and others
     coord = tf.train.Coordinator()
     threads = tf.train.start_queue_runners(sess=sess, coord=coord)
 
-    # re-initialize all variables (two thread veriables were initialized before)
-    sess.run(tf.global_variables_initializer())
 
     batch_num = 0
     while True:
         start = time.time()
 
-        # print sess.run([y_, x_image_batch], feed_dict={keep_prob: 0.5})
-        training_error = sess.run([train_step_run], feed_dict={keep_prob: 0.5})
-        print "training error:",training_error
-        print "examples per second:", "%.2f" % (100 / (time.time() - start))
-        print batch_num
-        batch_num+=1
-        print "epc", sess.run(epc())
+        epo,c_entropy_mean,_ = sess.run([current_epoch[0],cross_entropy_mean,train_step_run], feed_dict={keep_prob: 0.5})
+        print "epoch:",epo,"global step:", batch_num, "\tcross entropy mean:", c_entropy_mean,
+        print "\texamples per second:", "%.2f" % (FLAGS.batch_size / (time.time() - start))
+
+        if (batch_num % 100 == 99):
+            # once in a while save the network state and write variable summaries to disk
+            c_entropy_mean,sc_entropy_mean,summaries = sess.run(
+                [cross_entropy_mean, shuffled_cross_entropy_mean, merged_summaries], feed_dict={keep_prob: 1})
+            print "cross entropy mean:",c_entropy_mean, "shuffled cross entropy mean:", sc_entropy_mean
+            train_writer.add_summary(summaries, batch_num)
+            saver.save(sess, FLAGS.summaries_dir + '/' + str(FLAGS.run_index) + "_netstate/saved_state", global_step=batch_num)
+
+        batch_num += 1
+    assert not np.isnan(cross_entropy_mean), 'Model diverged with loss = NaN'
+
 
 class FLAGS:
-    # important model parameters
+    """important model parameters"""
+
     # size of one pixel generated from protein in Angstroms (float)
     pixel_size = 1
     # size of the box around the ligand in pixels
     side_pixels = 20
     # weights for each class for the scoring function
     # number of times each example in the dataset will be read
-    num_epochs = 20
+    num_epochs = 5000 # epochs are counted based on the number of the protein examples
+    # usually the dataset would have multiples frames of ligand binding to the same protein
+    # av4_input also has an oversampling algorithm.
+    # Example: if the dataset has 50 frames with 0 labels and 1 frame with 1 label, and we want to run it for 50 epochs,
+    # 50 * 2(oversampling) * 50(negative samples) = 50 * 100 = 5000
+
     # parameters to optimize runs on different machines for speed/performance
     # number of vectors(images) in one batch
     batch_size = 100
@@ -187,8 +216,7 @@ class FLAGS:
     # directory where to write variable summaries
     summaries_dir = './summaries'
     # optional saved session: network from which to load variable states
-    saved_session = 0
-
+    saved_session = None
 
 
 def main(_):

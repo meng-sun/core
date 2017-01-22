@@ -4,9 +4,8 @@ import time
 
 # generate one very large tensor
 # take slices from that tensor
-# use slices to find good affine transform
-# generate a smaller tensor, use the whole one,
-# regenerate it every epoch.
+# assuming our tensor is big,
+# random slices from it should represent affine transform
 
 def generate_deep_affine_transform(num_frames):
     """Generates a very big batch of affine transform matrices in 3D. The first dimension is batch, the other two
@@ -170,23 +169,6 @@ def affine_transform(coordinates,transition_matrix):
     transformed_coords = tf.matmul(coordinates_with_ones,tf.transpose(transition_matrix))[0:,:-1]
 
     return transformed_coords,transition_matrix
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 
 
 
