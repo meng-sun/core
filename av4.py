@@ -1,6 +1,6 @@
 import time,os
 import tensorflow as tf
-from av4_input import image_and_label_queue
+from av4_input import epc, image_and_label_queue
 
 # telling tensorflow how we want to randomly initialize weights
 def weight_variable(shape):
@@ -15,13 +15,13 @@ def variable_summaries(var, name):
   """Attach a lot of summaries to a Tensor."""
   with tf.name_scope('summaries'):
     mean = tf.reduce_mean(var)
-    tf.scalar_summary('mean/' + name, mean)
+    tf.summary.scalar('mean/' + name, mean)
     with tf.name_scope('stddev'):
       stddev = tf.sqrt(tf.reduce_mean(tf.square(var - mean)))
-    tf.scalar_summary('stddev/' + name, stddev)
-    tf.scalar_summary('max/' + name, tf.reduce_max(var))
-    tf.scalar_summary('min/' + name, tf.reduce_min(var))
-    tf.histogram_summary(name, var)
+    tf.summary.scalar('stddev/' + name, stddev)
+    tf.summary.scalar('max/' + name, tf.reduce_max(var))
+    tf.summary.scalar('min/' + name, tf.reduce_min(var))
+    tf.summary.histogram(name, var)
 
 def conv_layer(layer_name, input_tensor, filter_size, strides=[1, 1, 1, 1, 1], padding='SAME'):
   """makes a simple convolutional layer"""
@@ -35,7 +35,7 @@ def conv_layer(layer_name, input_tensor, filter_size, strides=[1, 1, 1, 1, 1], p
       b_conv = bias_variable([output_depth])
       variable_summaries(b_conv, layer_name + '/biases')
     h_conv = tf.nn.conv3d(input_tensor, W_conv, strides=strides, padding=padding) + b_conv
-    tf.histogram_summary(layer_name + '/pooling_output', h_conv)
+    tf.summary.histogram(layer_name + '/pooling_output', h_conv)
     print layer_name,"output dimensions:", h_conv.get_shape()
     return h_conv
 
@@ -43,8 +43,8 @@ def relu_layer(layer_name,input_tensor,act=tf.nn.relu):
   """makes a simple relu layer"""
   with tf.name_scope(layer_name):
     h_relu = act(input_tensor, name='activation')
-    tf.histogram_summary(layer_name + '/relu_output', h_relu)
-    tf.scalar_summary(layer_name + '/sparsity', tf.nn.zero_fraction(h_relu))
+    tf.summary.histogram(layer_name + '/relu_output', h_relu)
+    tf.summary.scalar(layer_name + '/sparsity', tf.nn.zero_fraction(h_relu))
 
   print layer_name, "output dimensions:", h_relu.get_shape()
   return h_relu
@@ -53,7 +53,7 @@ def pool_layer(layer_name,input_tensor,ksize,strides=[1, 1, 1, 1, 1],padding='SA
   """makes a simple pooling layer"""
   with tf.name_scope(layer_name):
     h_pool = tf.nn.max_pool3d(input_tensor,ksize=ksize,strides=strides,padding=padding)
-    tf.histogram_summary(layer_name + '/pooling_output', h_pool)
+    tf.summary.histogram(layer_name + '/pooling_output', h_pool)
     print layer_name, "output dimensions:", h_pool.get_shape()
     return h_pool
 
@@ -69,7 +69,7 @@ def fc_layer(layer_name,input_tensor,output_dim):
       variable_summaries(biases, layer_name + '/biases')
     with tf.name_scope('Wx_plus_b'):
       h_fc = tf.matmul(input_tensor, weights) + biases
-      tf.histogram_summary(layer_name + '/fc_output', h_fc)
+      tf.summary.histogram(layer_name + '/fc_output', h_fc)
     print layer_name, "output dimensions:", h_fc.get_shape()
     return h_fc
 
@@ -111,7 +111,7 @@ def max_net(x_image_batch,keep_prob):
     h_fc1_relu = relu_layer(layer_name="fc1_relu", input_tensor=h_fc1)
 
     with tf.name_scope("dropout"):
-        tf.scalar_summary('dropout_keep_probability', keep_prob)
+        tf.summary.scalar('dropout_keep_probability', keep_prob)
         h_fc1_drop = tf.nn.dropout(h_fc1_relu, keep_prob)
 
     h_fc2 = fc_layer(layer_name="fc2", input_tensor=h_fc1_drop, output_dim=256)
@@ -131,13 +131,13 @@ def train():
     sess = tf.Session()
     # TODO: write atoms in layers of depth
 
-    _,y_,x_image_batch,epc = image_and_label_queue(sess=sess,batch_size=FLAGS.batch_size,
+    _,y_,x_image_batch = image_and_label_queue(sess=sess,batch_size=FLAGS.batch_size,
                                                 pixel_size=FLAGS.pixel_size,side_pixels=FLAGS.side_pixels,
-                                                num_threads=FLAGS.num_threads,database_path=FLAGS.database_path)
+                                                num_threads=FLAGS.num_threads,
+                                                database_path=FLAGS.database_path)
 
 
-
-
+   
     float_image_batch = tf.cast(x_image_batch,tf.float32)
 
     keep_prob = tf.placeholder(tf.float32)
@@ -147,7 +147,7 @@ def train():
     cross_entropy_mean = tf.reduce_mean(cross_entropy)
 
     with tf.name_scope('train'):
-        tf.scalar_summary('weighted cross entropy mean', cross_entropy_mean)
+        tf.summary.scalar('weighted cross entropy mean', cross_entropy_mean)
         train_step_run = tf.train.AdamOptimizer(1e-4).minimize(cross_entropy)
 
     coord = tf.train.Coordinator()
@@ -156,21 +156,19 @@ def train():
     # re-initialize all variables (two thread veriables were initialized before)
     sess.run(tf.global_variables_initializer())
 
-
     batch_num = 0
     while True:
         start = time.time()
 
-        #sess.run([y_, x_image_batch], feed_dict={keep_prob: 0.5})
+        # print sess.run([y_, x_image_batch], feed_dict={keep_prob: 0.5})
         training_error = sess.run([train_step_run], feed_dict={keep_prob: 0.5})
         print "training error:",training_error
-        print "examples per second:", "%.2f" % (50 / (time.time() - start))
-
+        print "examples per second:", "%.2f" % (100 / (time.time() - start))
+        print batch_num
         batch_num+=1
-    print "epc", epc.eval(sess)
+        print "epc", sess.run(epc())
 
 class FLAGS:
-
     # important model parameters
     # size of one pixel generated from protein in Angstroms (float)
     pixel_size = 1
@@ -181,17 +179,15 @@ class FLAGS:
     num_epochs = 20
     # parameters to optimize runs on different machines for speed/performance
     # number of vectors(images) in one batch
-    batch_size = 10
+    batch_size = 100
     # number of background processes to fill the queue with images
-    num_threads = 16
+    num_threads = 512
     # data directories
-    database_path = "home/ubuntu/maksym/labeled_pdb_av4/**/"
+    database_path = "/home/ubuntu/maksym/labeled_pdb_av4/**/"
     # directory where to write variable summaries
     summaries_dir = './summaries'
     # optional saved session: network from which to load variable states
     saved_session = 0
-
-
 
 
 
