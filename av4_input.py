@@ -91,7 +91,7 @@ def read_receptor_and_ligand(filename_queue,num_epochs,examples_in_database):
 def image_walk(coords, elements, dense_shape):
     """returns a sparse tensor of shape [num, dense_shape[0], dense_shape[1]...] containing only the positions 
     corresponding to the occurrences of the atom num in elements at each num slice"""
-    # using the simpler method since atomdict has distinct values 0-7 inclucsive right now
+    # using the simpler method since atomdict has distinct values 0-7 inclusive right now
     
     if_merge_1 = tf.equal(1, elements) 
     partitioned_coords_1 = tf.boolean_mask(coords, if_merge_1)
@@ -202,14 +202,12 @@ def convert_protein_and_ligand_to_image(ligand_elements,ligand_coords,receptor_e
     # in this case TF's sparse_tensor_to_dense can be used to generate an image out of rounded coordinates
     
     all_sparse_elements = image_walk(complex_coords, complex_elements, [side_pixels,side_pixels,side_pixels])
-    print all_sparse_elements
-    sparse_complex = tf.SparseTensor(indices=complex_coords, values=complex_elements,shape=[side_pixels,side_pixels,side_pixels])
-    dense_complex = tf.sparse_tensor_to_dense(sparse_complex, validate_indices=False)
+
     # FIXME: sparse_tensor_to_dense has not been properly tested.
     # FIXME: I may need to sort indices according to TF's manual on the function
     # FIXME: try to save an image and see how it looks like
-    #TODO REMOVE after TESTING 
-    return all_sparse_elements,dense_complex
+
+    return all_sparse_elements
 
 
 def image_and_label_queue(sess,batch_size,pixel_size,side_pixels,num_threads,database_path,num_epochs):
@@ -228,7 +226,7 @@ def image_and_label_queue(sess,batch_size,pixel_size,side_pixels,num_threads,dat
     current_epoch,label,ligand_elements,ligand_coords,receptor_elements,receptor_coords = read_receptor_and_ligand(filename_queue,num_epochs,index_list[-1])
 
     # convert coordinates of ligand and protein into an image
-    sparse_images_by_element,dense_image = convert_protein_and_ligand_to_image(ligand_elements,ligand_coords,receptor_elements,receptor_coords,side_pixels,pixel_size)
+    sparse_images_by_element = convert_protein_and_ligand_to_image(ligand_elements,ligand_coords,receptor_elements,receptor_coords,side_pixels,pixel_size)
     
     # selectively initialize some of the variables
     uninitialized_vars = []
@@ -240,7 +238,7 @@ def image_and_label_queue(sess,batch_size,pixel_size,side_pixels,num_threads,dat
     sess.run(tf.local_variables_initializer())
     init_new_vars_op = tf.variables_initializer(uninitialized_vars)
     sess.run(init_new_vars_op)
+    
     # create a batch of proteins and ligands to read them together
-    #multithread_batch = tf.train.batch([current_epoch, label, sparse_image.op,dense_image], batch_size, num_threads=num_threads,capacity=batch_size * 3)
     multithread_batch = tf.train.batch([current_epoch, label, sparse_images_by_element], batch_size, shapes = [[],[],[None]], dynamic_pad=True, num_threads=num_threads,capacity=batch_size * 3)
     return multithread_batch
