@@ -1,3 +1,4 @@
+import sys
 import time,os
 import tensorflow as tf
 import numpy as np
@@ -127,14 +128,14 @@ def train():
     "train a network"
     # with the current setup all of the TF's operations are happening in one session
     sess = tf.Session()
-
-    current_epoch,label_batch,image_batch = image_and_label_queue(sess=sess,batch_size=FLAGS.batch_size,
+   #TODO CHANGED FOR TESTING
+    current_epoch, y_, cross_entropy_mean = image_and_label_queue(sess=sess,batch_size=FLAGS.batch_size,
                                                 pixel_size=FLAGS.pixel_size,side_pixels=FLAGS.side_pixels,
                                                 num_threads=FLAGS.num_threads,database_path=FLAGS.database_path,
                                                                   num_epochs=FLAGS.num_epochs)
     # TODO: write atoms in layers of depth
     # floating is temporary
-    float_image_batch = tf.cast(image_batch,tf.float32)
+    """float_image_batch = tf.cast(image_batch,tf.float32)
 
     keep_prob = tf.placeholder(tf.float32)
     predicted_labels= max_net(float_image_batch,keep_prob)
@@ -154,7 +155,7 @@ def train():
     # merge all summaries and create a file writer object
     merged_summaries = tf.summary.merge_all()
     train_writer = tf.summary.FileWriter((FLAGS.summaries_dir + '/' + str(FLAGS.run_index) + "_train"), sess.graph)
-
+    """
     # create saver to save and load the network state
     saver = tf.train.Saver()
     if not FLAGS.saved_session is None:
@@ -172,23 +173,24 @@ def train():
 
 
     batch_num = 0
-    while True:
+    #while True:
+    while batch_num < 2:
         start = time.time()
-
-        epo,c_entropy_mean,_ = sess.run([current_epoch[0],cross_entropy_mean,train_step_run], feed_dict={keep_prob: 0.5})
-        print "epoch:",epo,"global step:", batch_num, "\tcross entropy mean:", c_entropy_mean,
+        # TODO CHANGE AFTER TESTING
+        #epo,c_entropy_mean,_ = sess.run([current_epoch[0],cross_entropy_mean,train_step_run], feed_dict={keep_prob: 0.5})
+        epo,c_entropy_mean = sess.run([current_epoch[0],cross_entropy_mean])
+        print "epoch:",epo,"global step:", batch_num, "\tcross entropy mean:", c_entropy_mean
         print "\texamples per second:", "%.2f" % (FLAGS.batch_size / (time.time() - start))
-
         if (batch_num % 100 == 99):
             # once in a while save the network state and write variable summaries to disk
-            c_entropy_mean,sc_entropy_mean,summaries = sess.run(
+            """c_entropy_mean,sc_entropy_mean,summaries = sess.run(
                 [cross_entropy_mean, shuffled_cross_entropy_mean, merged_summaries], feed_dict={keep_prob: 1})
             print "cross entropy mean:",c_entropy_mean, "shuffled cross entropy mean:", sc_entropy_mean
             train_writer.add_summary(summaries, batch_num)
             saver.save(sess, FLAGS.summaries_dir + '/' + str(FLAGS.run_index) + "_netstate/saved_state", global_step=batch_num)
-
+            """
         batch_num += 1
-    assert not np.isnan(cross_entropy_mean), 'Model diverged with loss = NaN'
+    #assert not np.isnan(cross_entropy_mean), 'Model diverged with loss = NaN'
 
 
 class FLAGS:
