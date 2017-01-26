@@ -1,4 +1,3 @@
-import sys
 import time,os
 import tensorflow as tf
 import numpy as np
@@ -83,10 +82,10 @@ def max_net(x_image_batch,keep_prob):
     with tf.name_scope("input_reshape"):
         print "image batch dimensions", x_image_batch.get_shape()
         # formally adding one depth dimension to the input
-        x_image_with_depth = tf.reshape(x_image_batch, [-1, 20, 20, 20, 1])
+        x_image_with_depth = tf.reshape(x_image_batch, [-1, 20, 20, 20, 14])
         print "input to the first layer dimensions", x_image_with_depth.get_shape()
 
-    h_conv1 = conv_layer(layer_name='conv1_5x5x5', input_tensor=x_image_with_depth, filter_size=[5, 5, 5, 1, 20])
+    h_conv1 = conv_layer(layer_name='conv1_5x5x5', input_tensor=x_image_with_depth, filter_size=[5, 5, 5, 14, 20])
     h_relu1 = relu_layer(layer_name='relu1', input_tensor=h_conv1)
     h_pool1 = pool_layer(layer_name='pool1_2x2x2', input_tensor=h_relu1, ksize=[1, 2, 2, 2, 1], strides=[1, 2, 2, 2, 1])
 
@@ -128,19 +127,20 @@ def train():
     "train a network"
     # with the current setup all of the TF's operations are happening in one session
     sess = tf.Session()
-   #TODO CHANGED FOR TESTING
-    current_epoch, y_, cross_entropy_mean = image_and_label_queue(sess=sess,batch_size=FLAGS.batch_size,
+    current_epoch,label_batch,image_batch = image_and_label_queue(sess=sess,batch_size=FLAGS.batch_size,
                                                 pixel_size=FLAGS.pixel_size,side_pixels=FLAGS.side_pixels,
                                                 num_threads=FLAGS.num_threads,database_path=FLAGS.database_path,
                                                                   num_epochs=FLAGS.num_epochs)
-    # TODO: write atoms in layers of depth
+    
+    dense_image_batch = tf.sparse_tensor_to_dense(image_batch,validate_indices=False)
+    
     # floating is temporary
-    """float_image_batch = tf.cast(image_batch,tf.float32)
+    float_image_batch = tf.cast(dense_image_batch,tf.float32)
 
     keep_prob = tf.placeholder(tf.float32)
     predicted_labels= max_net(float_image_batch,keep_prob)
-
-    cross_entropy = tf.nn.sparse_softmax_cross_entropy_with_logits(predicted_labels,label_batch)
+    
+    cross_entropy = tf.nn.sparse_softmax_cross_entropy_with_logits(logits=predicted_labels,labels=label_batch)
     cross_entropy_mean = tf.reduce_mean(cross_entropy)
     tf.summary.scalar('cross entropy mean', cross_entropy_mean)
 
@@ -151,18 +151,18 @@ def train():
 
     # Adam optimizer is a very heart of the network
     train_step_run = tf.train.AdamOptimizer(1e-4).minimize(cross_entropy)
-
+    
     # merge all summaries and create a file writer object
     merged_summaries = tf.summary.merge_all()
     train_writer = tf.summary.FileWriter((FLAGS.summaries_dir + '/' + str(FLAGS.run_index) + "_train"), sess.graph)
-    """
+    
     # create saver to save and load the network state
     saver = tf.train.Saver()
     if not FLAGS.saved_session is None:
         print "Restoring variables from sleep. This may take a while..."
         saver.restore(sess, FLAGS.saved_session)
-
     # initialize all variables (two thread variables should have been initialized in av4_input already)
+    
     sess.run(tf.global_variables_initializer())
 
     # launch all threads only after the graph is complete and all the variables initialized
@@ -170,34 +170,33 @@ def train():
     # IE: lhs shape [] is different from rhs shape [100] and others
     coord = tf.train.Coordinator()
     threads = tf.train.start_queue_runners(sess=sess, coord=coord)
-
-
+    # TODO change after testing
     batch_num = 0
-    #while True:
-    while batch_num < 2:
+    while True:
         start = time.time()
-        # TODO CHANGE AFTER TESTING
-        #epo,c_entropy_mean,_ = sess.run([current_epoch[0],cross_entropy_mean,train_step_run], feed_dict={keep_prob: 0.5})
-        epo,c_entropy_mean = sess.run([current_epoch[0],cross_entropy_mean])
+
+        epo,c_entropy_mean,_ = sess.run([current_epoch[0],cross_entropy_mean,train_step_run], feed_dict={keep_prob: 0.5})
         print "epoch:",epo,"global step:", batch_num, "\tcross entropy mean:", c_entropy_mean
+        #test = sess.run(train_step_run, feed_dict={keep_prob:0.5})
         print "\texamples per second:", "%.2f" % (FLAGS.batch_size / (time.time() - start))
+
         if (batch_num % 100 == 99):
             # once in a while save the network state and write variable summaries to disk
-            """c_entropy_mean,sc_entropy_mean,summaries = sess.run(
+            c_entropy_mean,sc_entropy_mean,summaries = sess.run(
                 [cross_entropy_mean, shuffled_cross_entropy_mean, merged_summaries], feed_dict={keep_prob: 1})
             print "cross entropy mean:",c_entropy_mean, "shuffled cross entropy mean:", sc_entropy_mean
             train_writer.add_summary(summaries, batch_num)
             saver.save(sess, FLAGS.summaries_dir + '/' + str(FLAGS.run_index) + "_netstate/saved_state", global_step=batch_num)
-            """
+
         batch_num += 1
-    #assert not np.isnan(cross_entropy_mean), 'Model diverged with loss = NaN'
+    assert not np.isnan(cross_entropy_mean), 'Model diverged with loss = NaN'
 
 
 class FLAGS:
     """important model parameters"""
 
     # size of one pixel generated from protein in Angstroms (float)
-    pixel_size = 1
+    pixel_size = 0.5
     # size of the box around the ligand in pixels
     side_pixels = 20
     # weights for each class for the scoring function
@@ -207,10 +206,10 @@ class FLAGS:
     # av4_input also has an oversampling algorithm.
     # Example: if the dataset has 50 frames with 0 labels and 1 frame with 1 label, and we want to run it for 50 epochs,
     # 50 * 2(oversampling) * 50(negative samples) = 50 * 100 = 5000
-
+    num_classes = 2
     # parameters to optimize runs on different machines for speed/performance
     # number of vectors(images) in one batch
-    batch_size = 100
+    batch_size = 40
     # number of background processes to fill the queue with images
     num_threads = 512
     # data directories

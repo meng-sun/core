@@ -88,53 +88,30 @@ def read_receptor_and_ligand(filename_queue,num_epochs,examples_in_database):
 
     return tf.squeeze(epoch_counter),tf.squeeze(label),ligand_elements,tf.squeeze(ligand_coords),receptor_elements,tf.squeeze(multiframe_receptor_coords)
 
+
 def image_walk(coords, elements, dense_shape):
     """returns a sparse tensor of shape [num, dense_shape[0], dense_shape[1]...] containing only the positions 
     corresponding to the occurrences of the atom num in elements at each num slice"""
-    # using the simpler method since atomdict has distinct values 0-7 inclucsive right now
+    dense_shape = [14,dense_shape[0],dense_shape[1],dense_shape[2]]    
+    coords = tf.concat(1, [tf.reshape(tf.cast(elements-1, dtype=tf.int64), [-1,1]), coords])
     
-    if_merge_1 = tf.equal(1, elements) 
-    partitioned_coords_1 = tf.boolean_mask(coords, if_merge_1)
-    sparse_tensors_by_element1 = tf.SparseTensor(indices=partitioned_coords_1,values=tf.tile([1],[tf.shape(partitioned_coords_1)[0]]), shape=dense_shape)
-    
-    if_merge_2 = tf.equal(2, elements)
-    partitioned_coords_2 = tf.boolean_mask(coords, if_merge_2)
-    sparse_tensors_by_element2 = tf.sparse_concat(0, [sparse_tensors_by_element1,
-    tf.SparseTensor(indices=partitioned_coords_2,values=tf.tile([2],
-    [tf.shape(partitioned_coords_2)[0]]), shape=dense_shape)])
-    
-    if_merge_3 = tf.equal(3, elements)
-    partitioned_coords_3 = tf.boolean_mask(coords, if_merge_3)
-    sparse_tensors_by_element3 = tf.sparse_concat(0,[sparse_tensors_by_element2,
-    tf.SparseTensor(indices=partitioned_coords_3,
-    values=tf.tile([3],[tf.shape(partitioned_coords_3)[0]]), shape=dense_shape)])
-
-    if_merge_4 = tf.equal(4, elements)
-    partitioned_coords_4 = tf.boolean_mask(coords, if_merge_4)
-    sparse_tensors_by_element4 = tf.sparse_concat(0,[sparse_tensors_by_element3,
-    tf.SparseTensor(indices=partitioned_coords_4,
-    values=tf.tile([4],[tf.shape(partitioned_coords_4)[0]]), shape=dense_shape)])
-
-    if_merge_5 = tf.equal(5, elements)
-    partitioned_coords_5 = tf.boolean_mask(coords, if_merge_5)
-    sparse_tensors_by_element5 = tf.sparse_concat(0, [sparse_tensors_by_element4,
-    tf.SparseTensor(indices=partitioned_coords_5,
-    values=tf.tile([5],[tf.shape(partitioned_coords_5)[0]]), shape=dense_shape)])
-
-    if_merge_6 = tf.equal(6, elements)
-    partitioned_coords_6 = tf.boolean_mask(coords, if_merge_6)
-    sparse_tensors_by_element6 = tf.sparse_concat(0,[sparse_tensors_by_element5,
-    tf.SparseTensor(indices=partitioned_coords_6,
-    values=tf.tile([6],[tf.shape(partitioned_coords_6)[0]]), shape=dense_shape)])
-
-    if_merge_7 = tf.equal(7, elements)
-    partitioned_coords_7 = tf.boolean_mask(coords, if_merge_7)
-    sparse_tensors_by_element7 = tf.sparse_concat(0,[sparse_tensors_by_element6,
-    tf.SparseTensor(indices=partitioned_coords_7,
-    values=tf.tile([7],[tf.shape(partitioned_coords_7)[0]]), shape=dense_shape)])
-    
+    num_atoms = tf.shape(coords)[0]
+    coords_transpose = tf.transpose(coords)
+    _, ind_sort_z = tf.nn.top_k(-coords_transpose, k = num_atoms)
+    coords_sort_z = tf.gather(coords, ind_sort_z[3])
+    coords_transpose_z = tf.transpose(coords_sort_z)
+    _, ind_sort_y = tf.nn.top_k(-coords_transpose_z, k = num_atoms)
+    coords_sort_y = tf.gather(coords_sort_z, ind_sort_y[2])
+    coords_transpose_y = tf.transpose(coords_sort_y)
+    _, ind_sort_x = tf.nn.top_k(-coords_transpose_y, k=num_atoms)
+    coords_sort_x = tf.gather(coords_sort_y, ind_sort_x[1])
+    coords_transpose_x = tf.transpose(coords_sort_x)
+    _, ind_sort_elements = tf.nn.top_k(-coords_transpose_x, k=num_atoms)
+    coords_sort_elements = tf.gather(coords_sort_x, ind_sort_elements[0])
+    coords_transpose_elements = tf.transpose(coords_sort_elements)
+    sparse_tensors_by_element = tf.SparseTensor(indices=coords_sort_elements, values=coords_transpose_elements[0], shape=dense_shape)
     # TODO reshape by reference without having to write out explicitly 
-    sparse_tensors_by_element = tf.sparse_reshape(sparse_tensors_by_element7, [7,dense_shape[0], dense_shape[1], dense_shape[2]])
+    #sparse_tensors_by_element = tf.sparse_reshape(sparse_tensors_by_element17, [14,dense_shape[0], dense_shape[1], dense_shape[2]])
     return sparse_tensors_by_element
      
 def convert_protein_and_ligand_to_image(ligand_elements,ligand_coords,receptor_elements,receptor_coords,side_pixels,pixel_size):
@@ -183,8 +160,8 @@ def convert_protein_and_ligand_to_image(ligand_elements,ligand_coords,receptor_e
 
     # move coordinates of a complex to an integer number so as to put every atom on a grid
     # ceiled coords is an integer number out of real coordinates that corresponds to the index on the cell
-    ceiled_ligand_coords = tf.cast(tf.round(-0.5 + (tf.cast(side_pixels,tf.float32)*0.5) + rotatated_ligand_coords),tf.int64)
-    ceiled_receptor_coords = tf.cast(tf.round(-0.5 + (tf.cast(side_pixels, tf.float32) * 0.5) + rotated_receptor_coords),tf.int64)
+    ceiled_ligand_coords = tf.cast(tf.round(-0.5 + (tf.cast(side_pixels,tf.float32)*0.5) + rotatated_ligand_coords/pixel_size),tf.int64)
+    ceiled_receptor_coords = tf.cast(tf.round(-0.5 + (tf.cast(side_pixels, tf.float32) * 0.5) + rotated_receptor_coords/pixel_size),tf.int64)
 
     # crop atoms of the protein that do not fit inside the box
     top_filter = tf.reduce_max(ceiled_receptor_coords,reduction_indices=1)<side_pixels
@@ -195,21 +172,18 @@ def convert_protein_and_ligand_to_image(ligand_elements,ligand_coords,receptor_e
 
     # merge protein and ligand together. In this case an arbitrary value of 10 is added to the ligand
     complex_coords = tf.concat(0,[ceiled_ligand_coords,cropped_receptor_coords])
-    complex_elements = tf.concat(0,[ligand_elements+10,cropped_receptor_elements])
+    complex_elements = tf.concat(0,[ligand_elements+7,cropped_receptor_elements])
 
     # in coordinates of a protein rounded to the nearest integer can be represented as indices of a sparse 3D tensor
     # values from the atom dictionary can be represented as values of a sparse tensor
     # in this case TF's sparse_tensor_to_dense can be used to generate an image out of rounded coordinates
-    
+
     all_sparse_elements = image_walk(complex_coords, complex_elements, [side_pixels,side_pixels,side_pixels])
-    print all_sparse_elements
-    sparse_complex = tf.SparseTensor(indices=complex_coords, values=complex_elements,shape=[side_pixels,side_pixels,side_pixels])
-    dense_complex = tf.sparse_tensor_to_dense(sparse_complex, validate_indices=False)
+    
     # FIXME: sparse_tensor_to_dense has not been properly tested.
     # FIXME: I may need to sort indices according to TF's manual on the function
     # FIXME: try to save an image and see how it looks like
-    #TODO REMOVE after TESTING 
-    return all_sparse_elements,dense_complex
+    return all_sparse_elements
 
 
 def image_and_label_queue(sess,batch_size,pixel_size,side_pixels,num_threads,database_path,num_epochs):
@@ -228,7 +202,7 @@ def image_and_label_queue(sess,batch_size,pixel_size,side_pixels,num_threads,dat
     current_epoch,label,ligand_elements,ligand_coords,receptor_elements,receptor_coords = read_receptor_and_ligand(filename_queue,num_epochs,index_list[-1])
 
     # convert coordinates of ligand and protein into an image
-    sparse_images_by_element,dense_image = convert_protein_and_ligand_to_image(ligand_elements,ligand_coords,receptor_elements,receptor_coords,side_pixels,pixel_size)
+    sparse_images_by_element = convert_protein_and_ligand_to_image(ligand_elements,ligand_coords,receptor_elements,receptor_coords,side_pixels,pixel_size)
     
     # selectively initialize some of the variables
     uninitialized_vars = []
@@ -240,7 +214,11 @@ def image_and_label_queue(sess,batch_size,pixel_size,side_pixels,num_threads,dat
     sess.run(tf.local_variables_initializer())
     init_new_vars_op = tf.variables_initializer(uninitialized_vars)
     sess.run(init_new_vars_op)
+    
     # create a batch of proteins and ligands to read them together
     #multithread_batch = tf.train.batch([current_epoch, label, sparse_image.op,dense_image], batch_size, num_threads=num_threads,capacity=batch_size * 3)
-    multithread_batch = tf.train.batch([current_epoch, label, sparse_images_by_element], batch_size, shapes = [[],[],[None]], dynamic_pad=True, num_threads=num_threads,capacity=batch_size * 3)
+    multithread_batch = tf.train.batch([current_epoch, label, 
+                        sparse_images_by_element], batch_size, 
+                        shapes = [[],[],[None]], dynamic_pad=True, 
+                        num_threads=num_threads,capacity=batch_size * 3)
     return multithread_batch

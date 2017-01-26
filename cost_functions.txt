@@ -23,7 +23,7 @@ def lvq2(logits,labels, min_cost):
 
 
 def square_square(logits,labels):
-	batch_size = int(logits.get_shape()[0])
+    batch_size = int(logits.get_shape()[0])
     num_classes = int(logits.get_shape()[1])
     labels = tf.cast(labels, dtype=tf.int32)
     indices = tf.cast(tf.pack((tf.range(0, batch_size), labels), axis=1), dtype=tf.int64)
