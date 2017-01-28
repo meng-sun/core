@@ -1,9 +1,7 @@
 import tensorflow as tf
-import sys
 from glob import glob
 import os,time
 from av4_utils import generate_deep_affine_transform,affine_transform
-import random as rand
 
 def index_the_database_into_queue(database_path,shuffle):
     """Indexes av4 database and returns two lists of filesystem path: ligand files, and protein files.
@@ -105,24 +103,8 @@ def image_walk(coords, elements, dense_shape):
     corresponding to the occurrences of the atom num in elements at each num slice"""
     dense_shape = [14,dense_shape[0],dense_shape[1],dense_shape[2]]    
     coords = tf.concat(1, [tf.reshape(tf.cast(elements-1, dtype=tf.int64), [-1,1]), coords])
-    
-    num_atoms = tf.shape(coords)[0]
-    coords_transpose = tf.transpose(coords)
-    _, ind_sort_z = tf.nn.top_k(-coords_transpose, k = num_atoms)
-    coords_sort_z = tf.gather(coords, ind_sort_z[3])
-    coords_transpose_z = tf.transpose(coords_sort_z)
-    _, ind_sort_y = tf.nn.top_k(-coords_transpose_z, k = num_atoms)
-    coords_sort_y = tf.gather(coords_sort_z, ind_sort_y[2])
-    coords_transpose_y = tf.transpose(coords_sort_y)
-    _, ind_sort_x = tf.nn.top_k(-coords_transpose_y, k=num_atoms)
-    coords_sort_x = tf.gather(coords_sort_y, ind_sort_x[1])
-    coords_transpose_x = tf.transpose(coords_sort_x)
-    _, ind_sort_elements = tf.nn.top_k(-coords_transpose_x, k=num_atoms)
-    coords_sort_elements = tf.gather(coords_sort_x, ind_sort_elements[0])
-    coords_transpose_elements = tf.transpose(coords_sort_elements)
-    sparse_tensors_by_element = tf.SparseTensor(indices=coords_sort_elements, values=coords_transpose_elements[0], shape=dense_shape)
+    sparse_tensors_by_element = tf.SparseTensor(indices=coords, values=elements, shape=dense_shape)
     # TODO reshape by reference without having to write out explicitly 
-    #sparse_tensors_by_element = tf.sparse_reshape(sparse_tensors_by_element17, [14,dense_shape[0], dense_shape[1], dense_shape[2]])
     return sparse_tensors_by_element
      
 def convert_protein_and_ligand_to_image(ligand_elements,ligand_coords,receptor_elements,receptor_coords,side_pixels,pixel_size):
@@ -192,12 +174,9 @@ def convert_protein_and_ligand_to_image(ligand_elements,ligand_coords,receptor_e
     complex_coords = tf.concat(0,[ceiled_ligand_coords,cropped_receptor_coords])
     complex_elements = tf.concat(0,[ligand_elements+7,cropped_receptor_elements])
 
-
     # in coordinates of a protein rounded to the nearest integer can be represented as indices of a sparse 3D tensor
     # values from the atom dictionary can be represented as values of a sparse tensor
     # in this case TF's sparse_tensor_to_dense can be used to generate an image out of rounded coordinates
-
-
     all_sparse_elements = image_walk(complex_coords, complex_elements, [side_pixels,side_pixels,side_pixels])
     
     # FIXME: sparse_tensor_to_dense has not been properly tested.
