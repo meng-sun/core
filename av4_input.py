@@ -7,9 +7,7 @@ def index_the_database_into_queue(database_path,shuffle):
     """Indexes av4 database and returns two lists of filesystem path: ligand files, and protein files.
     Ligands are assumed to end with _ligand.av4, proteins should be in the same folders with ligands.
     Each protein should have its own folder named similarly to the protein name (in the PDB)."""
-
     # TODO controls epochs here
-
     ligand_file_list = []
     receptor_file_list = []
     for ligand_file in glob(os.path.join(database_path+'/**/', "*_ligand.av4")):
@@ -67,10 +65,6 @@ def read_receptor_and_ligand(filename_queue,num_epochs,examples_in_database):
     ligand_file = filename_queue[1]
     serialized_ligand = tf.read_file(ligand_file)
     serialized_receptor = tf.read_file(filename_queue[2])
-    
-    # for epoch testing
-    global epoch_counter
-    # create an epoch counter
 
     examples_processed = tf.Variable(0,tf.int64)
     examples_processed = examples_processed.count_up_to(num_epochs*examples_in_database)
@@ -103,10 +97,28 @@ def image_walk(coords, elements, dense_shape):
     corresponding to the occurrences of the atom num in elements at each num slice"""
     dense_shape = [14,dense_shape[0],dense_shape[1],dense_shape[2]]    
     coords = tf.concat(1, [tf.reshape(tf.cast(elements-1, dtype=tf.int64), [-1,1]), coords])
+
+    #num_atoms = tf.shape(coords)[0]
+    #coords_transpose = tf.transpose(coords)
+    #_, ind_sort_z = tf.nn.top_k(-coords_transpose, k = num_atoms)
+    #coords_sort_z = tf.gather(coords, ind_sort_z[3])
+    #coords_transpose_z = tf.transpose(coords_sort_z)
+    #_, ind_sort_y = tf.nn.top_k(-coords_transpose_z, k = num_atoms)
+    #coords_sort_y = tf.gather(coords_sort_z, ind_sort_y[2])
+    #coords_transpose_y = tf.transpose(coords_sort_y)
+    #_, ind_sort_x = tf.nn.top_k(-coords_transpose_y, k=num_atoms)
+    #coords_sort_x = tf.gather(coords_sort_y, ind_sort_x[1])
+    #coords_transpose_x = tf.transpose(coords_sort_x)
+    #_, ind_sort_elements = tf.nn.top_k(-coords_transpose_x, k=num_atoms)
+    #coords_sort_elements = tf.gather(coords_sort_x, ind_sort_elements[0])
+    #coords_transpose_elements = tf.transpose(coords_sort_elements)
+
+    #sparse_tensors_by_element = tf.SparseTensor(indices=coords_sort_elements, values=coords_transpose_elements[0], shape=dense_shape)
     sparse_tensors_by_element = tf.SparseTensor(indices=coords, values=elements, shape=dense_shape)
     # TODO reshape by reference without having to write out explicitly 
     return sparse_tensors_by_element
-     
+
+
 def convert_protein_and_ligand_to_image(ligand_elements,ligand_coords,receptor_elements,receptor_coords,side_pixels,pixel_size):
     """Take coordinates and elements of protein and ligand and convert them into an image.
     Return image with one dimension so far."""
@@ -140,7 +152,6 @@ def convert_protein_and_ligand_to_image(ligand_elements,ligand_coords,receptor_e
         not_all = tf.cast(tf.reduce_max(tf.cast(tf.square(box_size*0.5) - tf.square(transformed_coords) < 0,tf.int32)),tf.bool)
         within_iteration_limit = tf.cast(tf.reduce_sum(tf.cast(attempt < max_num_attemts, tf.float32)), tf.bool)
         return tf.logical_and(within_iteration_limit, not_all)
-
 
     attempt = tf.Variable(tf.constant(0, shape=[1]))
     batch_of_transition_matrices = tf.Variable(generate_deep_affine_transform(affine_transform_pool_size))
