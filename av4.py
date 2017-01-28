@@ -171,14 +171,14 @@ def train():
     # IE: lhs shape [] is different from rhs shape [100] and others
     coord = tf.train.Coordinator()
     threads = tf.train.start_queue_runners(sess=sess, coord=coord)
-    # TODO change after testing
+
     batch_num = 0
     while True:
         start = time.time()
 
         epo,c_entropy_mean,_ = sess.run([current_epoch[0],cross_entropy_mean,train_step_run], feed_dict={keep_prob: 0.5})
         print "epoch:",epo,"global step:", batch_num, "\tcross entropy mean:", c_entropy_mean
-        #test = sess.run(train_step_run, feed_dict={keep_prob:0.5})
+
         print "\texamples per second:", "%.2f" % (FLAGS.batch_size / (time.time() - start))
 
         if (batch_num % 100 == 99):
@@ -210,7 +210,7 @@ class FLAGS:
     num_classes = 2
     # parameters to optimize runs on different machines for speed/performance
     # number of vectors(images) in one batch
-    batch_size = 40
+    batch_size = 100
     # number of background processes to fill the queue with images
     num_threads = 512
     # data directories
