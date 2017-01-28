@@ -19,43 +19,84 @@ class store_predictions:
     '''
 
     raw_predictions = defaultdict(list)
-    reduce_predictions = defaultdict(list)
+    processed_predictions = defaultdict(list)
 
-    def add_batch(self,ligand_file_path,batch_predictions):
-        ligand_file_name = os.path.basename(ligand_file_path).split('.')[0]
-        self.raw_predictions[ligand_file_name].append(batch_predictions)
+    def add_batch(self, batch_in_the_range, ligand_file_paths, batch_current_epoch, batch_predictions):
+        ligand_file_name = map(lambda filename:os.path.basename(filename).split('.')[0],ligand_file_paths)
+
+        for in_the_range,ligand,current_epoch,prediction in zip(batch_in_the_range, ligand_file_name, batch_current_epoch, batch_predictions):
+            if in_the_range:
+                self.raw_predictions[ligand].append(prediction)
 
     def reduce(self):
         '''
         if a ligand has more than one predictions
         use mean as final predictions
         '''
-        for key,value in raw_predictions.items():
+        for key, value in self.raw_predictions.items():
 
-            if len(value)>1:
-                predictions_size = map(lambda x:len(x),value)
-                if len(set(predictions_size))>1:
-                    raise Exception(key," has different number of predictions ",set(predictions_size))
-                reduce_predictions[key].append(np.mean(value,axis=0))
+            if len(value) > 1:
+                predictions_size = map(lambda x: len(x), value)
+                if len(set(predictions_size)) > 1:
+                    raise Exception(key, " has different number of predictions ", set(predictions_size))
+                self.processed_predictions[key].append(np.mean(value, axis=0))
             else:
-                reduce_predictions[key].append(value)
+                self.processed_predictions[key].append(value)
 
-    def final_predictions(self,predictions_list):
-        length = min(len(predictions_list,10))
+    def final_predictions(self, predictions_list):
+        length = min(len(predictions_list, 10))
         return np.mean(predictions_list[:length])
 
-    def save_predictions(self):
-        records =[]
-        for key,value in self.reduce_predictions.items():
-            records.append(key,self.final_predictions(value))
+    def fill_na(self):
+        for key in self.raw_predictions.keys():
+            value_len = len(self.raw_predictions[key])
+            if value_len>FLAGS.top_k:
+                print "{} have more predictions than expected, {} reuqired {} found.".format(key,FLAGS.top_k,value_len)
+            else:
+                for i in range(FLAGS.top_k-value_len):
+                    self.raw_predictions[key]
 
-        submission_csv = pd.DataFrame(records,columns=['Id','Predicted'])
-        submission_csv.to_csv(FLAGS.predictions_file_path+'_submission.csv',index=False)
 
+    def save_multiframe_predictions(self):
+        records = []
+        for key, value in self.raw_predictions.items():
+            value_len = len(self.raw_predictions[key])
+            if value_len>FLAGS.top_k:
+                print "{} have more predictions than expected, {} reuqired {} found.".format(key,FLAGS.top_k,value_len)
+                records.append([key]+value[:FLAGS.top_k])
+            else:
+                records.append( [key]+value )
+
+
+
+        submission_csv = pd.DataFrame(records, columns=['Id']+[ 'Predicted_%d'%i for i in range(1,len(records[0]))])
+        submission_csv.to_csv(FLAGS.predictions_file_path + '_multiframe_submission.csv', index=False)
+
+    def save_average(self):
+        '''
+        take average of multiple predcition
+        :return:
+        '''
+        records = []
+        for key,value in self.raw_predictions.items():
+            records.append([key,np.mean(np.array(value))])
+
+        submission_csv = pd.DataFrame(records,columns=['ID','Predicted'])
+        submission_csv.to_csv(FLAGS.predictions_file_path+'_average_submission.csv',index=False)
+
+    def save_max(self):
+
+        records = []
+        for key,value in self.raw_predictions.items():
+            records.append([key, np.max(np.array(value))])
+
+        submission_csv = pd.DataFrame(records, columns=['ID', 'Predicted'])
+        submission_csv.to_csv(FLAGS.predictions_file_path + '_max_submission.csv', index=False)
 
     def save(self):
-        self.reduce()
-        self.save_predictions()
+        self.save_average()
+        self.save_max()
+        self.save_multiframe_predictions()
 
 
 def evaluate_on_train_set():

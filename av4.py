@@ -1,7 +1,7 @@
 import time,os
 import tensorflow as tf
 import numpy as np
-from av4_input import image_and_label_queue
+from av4_input import image_and_label_shuffle_queue
 
 # telling tensorflow how we want to randomly initialize weights
 def weight_variable(shape):
@@ -127,7 +127,8 @@ def train():
     "train a network"
     # with the current setup all of the TF's operations are happening in one session
     sess = tf.Session()
-    current_epoch,label_batch,image_batch = image_and_label_queue(sess=sess,batch_size=FLAGS.batch_size,
+
+    current_epoch,label_batch,image_batch = image_and_label_shuffle_queue(sess=sess,batch_size=FLAGS.batch_size,
                                                 pixel_size=FLAGS.pixel_size,side_pixels=FLAGS.side_pixels,
                                                 num_threads=FLAGS.num_threads,database_path=FLAGS.database_path,
                                                                   num_epochs=FLAGS.num_epochs)
@@ -201,7 +202,7 @@ class FLAGS:
     side_pixels = 20
     # weights for each class for the scoring function
     # number of times each example in the dataset will be read
-    num_epochs = 5000 # epochs are counted based on the number of the protein examples
+    num_epochs = 50000 # epochs are counted based on the number of the protein examples
     # usually the dataset would have multiples frames of ligand binding to the same protein
     # av4_input also has an oversampling algorithm.
     # Example: if the dataset has 50 frames with 0 labels and 1 frame with 1 label, and we want to run it for 50 epochs,
@@ -213,7 +214,10 @@ class FLAGS:
     # number of background processes to fill the queue with images
     num_threads = 512
     # data directories
-    database_path = "/home/ubuntu/maksym/labeled_pdb_av4/**/"
+
+    # path to the csv file with names of images selected for training
+    database_path = "../datasets/labeled_av4"
+
     # directory where to write variable summaries
     summaries_dir = './summaries'
     # optional saved session: network from which to load variable states
