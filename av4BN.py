@@ -233,7 +233,7 @@ class FLAGS:
     num_threads = 512
     # data directories
     # path to the csv file with names of images selected for training
-    database_path = "../../maksym/labeled_pdb_av4"
+    database_path = "/pylon2/ci4s8bp/msun4/labeled_av4"
     # directory where to write variable summaries
     summaries_dir = './summaries'
     # optional saved session: network from which to load variable states
