@@ -32,7 +32,7 @@ def index_the_database_into_queue(database_path,shuffle):
     return filename_queue,examples_in_database
 
 
-def read_receptor_and_ligand(filename_queue,num_epochs,examples_in_database):
+def read_receptor_and_ligand(filename_queue,epoch_counter):
     """Reads ligand and protein raw bytes based on the names in the filename queue. Returns tensors with coordinates
     and atoms of ligand and protein for future processing.
     Important: by default it does oversampling of the positive examples based on training epoch."""
@@ -65,10 +65,6 @@ def read_receptor_and_ligand(filename_queue,num_epochs,examples_in_database):
     ligand_file = filename_queue[1]
     serialized_ligand = tf.read_file(ligand_file)
     serialized_receptor = tf.read_file(filename_queue[2])
-
-    examples_processed = tf.Variable(0,tf.int64)
-    examples_processed = examples_processed.count_up_to(num_epochs*examples_in_database)
-    epoch_counter = tf.div(examples_processed,examples_in_database)
 
     # decode bytes into meaningful tensors
     ligand_labels, ligand_elements, multiframe_ligand_coords = decode_av4(serialized_ligand)
@@ -188,6 +184,7 @@ def convert_protein_and_ligand_to_image(ligand_elements,ligand_coords,receptor_e
     # in coordinates of a protein rounded to the nearest integer can be represented as indices of a sparse 3D tensor
     # values from the atom dictionary can be represented as values of a sparse tensor
     # in this case TF's sparse_tensor_to_dense can be used to generate an image out of rounded coordinates
+
     all_sparse_elements = image_walk(complex_coords, complex_elements, [side_pixels,side_pixels,side_pixels])
     
     # FIXME: sparse_tensor_to_dense has not been properly tested.
@@ -195,28 +192,14 @@ def convert_protein_and_ligand_to_image(ligand_elements,ligand_coords,receptor_e
     # FIXME: try to save an image and see how it looks like
     return all_sparse_elements, ligand_center_of_mass,final_transition_matrix
 
-
-def image_and_label_shuffle_queue(sess,batch_size,pixel_size,side_pixels,num_threads,database_path,num_epochs):
+def image_and_label_shuffle_queue(batch_size,pixel_size,side_pixels,num_threads,filename_queue,epoch_counter):
     """Creates shuffle queue for training the network"""
 
-    filename_queue,examples_in_database = index_the_database_into_queue(database_path,shuffle=True)
-
     # read one receptor and stack of ligands; choose one of the ligands from the stack according to epoch
-    _,current_epoch,label,ligand_elements,ligand_coords,receptor_elements,receptor_coords = read_receptor_and_ligand(filename_queue,num_epochs,examples_in_database)
+    _,current_epoch,label,ligand_elements,ligand_coords,receptor_elements,receptor_coords = read_receptor_and_ligand(filename_queue,epoch_counter=epoch_counter)
 
     # convert coordinates of ligand and protein into an image
     sparse_images_div_element,_,_ = convert_protein_and_ligand_to_image(ligand_elements,ligand_coords,receptor_elements,receptor_coords,side_pixels,pixel_size)
-
-    # selectively initialize some of the variables
-    uninitialized_vars = []
-    for var in tf.global_variables():
-        try:
-            sess.run(var)
-        except tf.errors.FailedPreconditionError:
-            uninitialized_vars.append(var)
-
-    init_new_vars_op = tf.variables_initializer(uninitialized_vars)
-    sess.run(init_new_vars_op)
 
     # create a batch of proteins and ligands to read them together
     multithread_batch = tf.train.batch([current_epoch, label, sparse_images_div_element], batch_size, num_threads=num_threads,
@@ -224,9 +207,9 @@ def image_and_label_shuffle_queue(sess,batch_size,pixel_size,side_pixels,num_thr
 
     return multithread_batch
 
-
+"""
 def single_dense_image_example(sess,batch_size,pixel_size,side_pixels,num_threads,database_path,num_epochs):
-    """Reads the database and returns a single dense image example for visualization and other purposes."""
+    Reads the database and returns a single dense image example for visualization and other purposes
 
     filename_queue, examples_in_database = index_the_database_into_queue(database_path,shuffle=False)
 
@@ -248,6 +231,7 @@ def single_dense_image_example(sess,batch_size,pixel_size,side_pixels,num_thread
     sess.run(init_new_vars_op)
 
     # return all the information about a single image
+
     return ligand_file,ligand_center_of_mass,final_transition_matrix,current_epoch,label,sparse_images_div_element
 
 

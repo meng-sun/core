@@ -1,7 +1,7 @@
 import time,os
 import tensorflow as tf
 import numpy as np
-from av4_input import image_and_label_shuffle_queue
+from av4_input import index_the_database_into_queue,image_and_label_shuffle_queue
 
 # telling tensorflow how we want to randomly initialize weights
 def weight_variable(shape):
@@ -125,16 +125,25 @@ def max_net(x_image_batch,keep_prob):
 
 def train():
     "train a network"
-    # with the current setup all of the TF's operations are happening in one session
+    # it's better if all of the computations use a single session
     sess = tf.Session()
 
-    current_epoch,label_batch,image_batch = image_and_label_shuffle_queue(sess=sess,batch_size=FLAGS.batch_size,
-                                                pixel_size=FLAGS.pixel_size,side_pixels=FLAGS.side_pixels,
-                                                num_threads=FLAGS.num_threads,database_path=FLAGS.database_path,
-                                                                  num_epochs=FLAGS.num_epochs)
-    
+    # create a filename queue first
+    filename_queue, examples_in_database = index_the_database_into_queue(FLAGS.database_path, shuffle=True)
+
+    # create an epoch counter
+    batch_counter = tf.Variable(0)
+    batch_counter_increment = tf.assign(batch_counter, tf.Variable(0).count_up_to(np.round((examples_in_database*FLAGS.num_epochs)/FLAGS.batch_size)))
+    epoch_counter = tf.div(batch_counter*FLAGS.batch_size,examples_in_database)
+
+    # create a custom shuffle queue
+    current_epoch,label_batch,image_batch = image_and_label_shuffle_queue(batch_size=FLAGS.batch_size, pixel_size=FLAGS.pixel_size,
+                                                                          side_pixels=FLAGS.side_pixels, num_threads=FLAGS.num_threads,
+                                                                          filename_queue=filename_queue, epoch_counter=epoch_counter)
+
     dense_image_batch = tf.sparse_tensor_to_dense(image_batch,validate_indices=False)
-    
+    # TODO: write atoms in layers of depth
+
     # floating is temporary
     float_image_batch = tf.cast(dense_image_batch,tf.float32)
 
@@ -163,7 +172,8 @@ def train():
         print "Restoring variables from sleep. This may take a while..."
         saver.restore(sess, FLAGS.saved_session)
     # initialize all variables (two thread variables should have been initialized in av4_input already)
-    
+
+    sess.run(tf.local_variables_initializer())
     sess.run(tf.global_variables_initializer())
 
     # launch all threads only after the graph is complete and all the variables initialized
@@ -172,12 +182,12 @@ def train():
     coord = tf.train.Coordinator()
     threads = tf.train.start_queue_runners(sess=sess, coord=coord)
 
-    batch_num = 0
+
     while True:
         start = time.time()
-
-        epo,c_entropy_mean,_ = sess.run([current_epoch[0],cross_entropy_mean,train_step_run], feed_dict={keep_prob: 0.5})
-        print "epoch:",epo,"global step:", batch_num, "\tcross entropy mean:", c_entropy_mean
+        batch_num = sess.run(batch_counter_increment)
+        epo,c_entropy_mean,_ = sess.run([current_epoch,cross_entropy_mean,train_step_run], feed_dict={keep_prob: 0.5})
+        print "epoch:",epo[0],"global step:", batch_num, "\tcross entropy mean:", c_entropy_mean,
 
         print "\texamples per second:", "%.2f" % (FLAGS.batch_size / (time.time() - start))
 
@@ -189,7 +199,6 @@ def train():
             train_writer.add_summary(summaries, batch_num)
             saver.save(sess, FLAGS.summaries_dir + '/' + str(FLAGS.run_index) + "_netstate/saved_state", global_step=batch_num)
 
-        batch_num += 1
     assert not np.isnan(cross_entropy_mean), 'Model diverged with loss = NaN'
 
 
