@@ -3,6 +3,32 @@ from glob import glob
 import os,time
 from av4_utils import generate_deep_affine_transform,affine_transform
 
+def image_walk(coords, elements, dense_shape):
+    """returns a sparse tensor of shape [num, dense_shape[0], dense_shape[1]...] containing only the positions 
+    corresponding to the occurrences of the atom num in elements at each num slice"""
+    #dense_shape = [14,dense_shape[0],dense_shape[1],dense_shape[2]]
+    #coords = tf.concat(1, [tf.reshape(tf.cast(elements-1, dtype=tf.int64), [-1,1]), coords])
+    dense_shape = [dense_shape[0],dense_shape[1],dense_shape[2],14]
+    coords = tf.concat(1, [coords,tf.reshape(tf.cast(elements-1, dtype=tf.int64), [-1,1])])
+    #num_atoms = tf.shape(coords)[0]
+    #coords_transpose = tf.transpose(coords)
+    #_, ind_sort_z = tf.nn.top_k(-coords_transpose, k = num_atoms)
+    #coords_sort_z = tf.gather(coords, ind_sort_z[3])
+    #coords_transpose_z = tf.transpose(coords_sort_z)
+    #_, ind_sort_y = tf.nn.top_k(-coords_transpose_z, k = num_atoms)
+    #coords_sort_y = tf.gather(coords_sort_z, ind_sort_y[2])
+    #coords_transpose_y = tf.transpose(coords_sort_y)
+    #_, ind_sort_x = tf.nn.top_k(-coords_transpose_y, k=num_atoms)
+    #coords_sort_x = tf.gather(coords_sort_y, ind_sort_x[1])
+    #coords_transpose_x = tf.transpose(coords_sort_x)
+    #_, ind_sort_elements = tf.nn.top_k(-coords_transpose_x, k=num_atoms)
+    #coords_sort_elements = tf.gather(coords_sort_x, ind_sort_elements[0])
+    #coords_transpose_elements = tf.transpose(coords_sort_elements)
+    #sparse_tensors_by_element = tf.SparseTensor(indices=coords_sort_elements, values=coords_transpose_elements[0], shape=dense_shape)
+    sparse_tensors_by_element = tf.SparseTensor(indices=coords, values=elements, shape=dense_shape)
+    # TODO reshape by reference without having to write out explicitly 
+    #sparse_tensors_by_element = tf.sparse_reshape(sparse_tensors_by_element17, [14,dense_shape[0], dense_shape[1], dense_shape[2]])
+    return sparse_tensors_by_element
 
 def index_the_database_into_queue(database_path,shuffle):
     """Indexes av4 database and returns two lists of filesystem path: ligand files, and protein files.
@@ -161,14 +187,14 @@ def convert_protein_and_ligand_to_image(ligand_elements,ligand_coords,receptor_e
     # merge protein and ligand together. In this case an arbitrary value of 10 is added to the ligand
     complex_coords = tf.concat(0,[ceiled_ligand_coords,cropped_receptor_coords])
 
-    complex_elements = tf.concat(0,[ligand_elements+10,cropped_receptor_elements])
+    complex_elements = tf.concat(0,[ligand_elements+7,cropped_receptor_elements])
 
     # in coordinates of a protein rounded to the nearest integer can be represented as indices of a sparse 3D tensor
     # values from the atom dictionary can be represented as values of a sparse tensor
     # in this case TF's sparse_tensor_to_dense can be used to generate an image out of rounded coordinates
-    sparse_complex = tf.SparseTensor(indices=complex_coords, values=complex_elements,shape=[side_pixels,side_pixels,side_pixels])
-    dense_complex = tf.sparse_tensor_to_dense(sparse_complex, validate_indices=False)
-
+    #sparse_complex = tf.SparseTensor(indices=complex_coords, values=complex_elements,shape=[side_pixels,side_pixels,side_pixels])
+    #dense_complex = tf.sparse_tensor_to_dense(sparse_complex, validate_indices=False)
+    sparse_complex = image_walk(complex_coords, complex_elements, [side_pixels, side_pixels, side_pixels])
 
 
 
@@ -176,7 +202,7 @@ def convert_protein_and_ligand_to_image(ligand_elements,ligand_coords,receptor_e
     # FIXME: I may need to sort indices according to TF's manual on the function
     # FIXME: try to save an image and see how it looks like
 
-    return dense_complex,ligand_center_of_mass,final_transition_matrix
+    return sparse_complex,ligand_center_of_mass,final_transition_matrix
 
 
 
@@ -190,7 +216,7 @@ def image_and_label_shuffle_queue(sess,batch_size,pixel_size,side_pixels,num_thr
     _,current_epoch,label,ligand_elements,ligand_coords,receptor_elements,receptor_coords = read_receptor_and_ligand(filename_queue,num_epochs,examples_in_database)
 
     # convert coordinates of ligand and protein into an image
-    dense_complex,_,_ = convert_protein_and_ligand_to_image(ligand_elements,ligand_coords,receptor_elements,receptor_coords,side_pixels,pixel_size)
+    sparse_complex,_,_ = convert_protein_and_ligand_to_image(ligand_elements,ligand_coords,receptor_elements,receptor_coords,side_pixels,pixel_size)
 
     # selectively initialize some of the variables
     uninitialized_vars = []
@@ -204,7 +230,8 @@ def image_and_label_shuffle_queue(sess,batch_size,pixel_size,side_pixels,num_thr
     sess.run(init_new_vars_op)
 
     # create a batch of proteins and ligands to read them together
-    multithread_batch = tf.train.batch([current_epoch, label, dense_complex], batch_size, num_threads=num_threads,capacity=batch_size * 3,shapes=[[], [], [side_pixels, side_pixels, side_pixels]])
+    multithread_batch = tf.train.batch([current_epoch, label, sparse_complex], batch_size, num_threads=num_threads,capacity=batch_size * 3,
+                                       dynamic_pad=True, shapes=[[], [], [None]])
 
     return multithread_batch
 
@@ -218,7 +245,7 @@ def single_dense_image_example(sess,batch_size,pixel_size,side_pixels,num_thread
     ligand_file,current_epoch,label,ligand_elements,ligand_coords,receptor_elements,receptor_coords = read_receptor_and_ligand(filename_queue,num_epochs,index_list[-1])
 
     # convert coordinates of ligand and protein into an image
-    dense_complex,ligand_center_of_mass,final_transition_matrix = convert_protein_and_ligand_to_image(ligand_elements,ligand_coords,receptor_elements,receptor_coords,side_pixels,pixel_size)
+    sparse_complex,ligand_center_of_mass,final_transition_matrix = convert_protein_and_ligand_to_image(ligand_elements,ligand_coords,receptor_elements,receptor_coords,side_pixels,pixel_size)
 
     # selectively initialize some of the variables
     uninitialized_vars = []
@@ -232,7 +259,7 @@ def single_dense_image_example(sess,batch_size,pixel_size,side_pixels,num_thread
     sess.run(init_new_vars_op)
 
     # return all the information about a single image
-    return ligand_file,ligand_center_of_mass,final_transition_matrix,current_epoch,label,dense_complex
+    return ligand_file,ligand_center_of_mass,final_transition_matrix,current_epoch,label,sparse_complex
 
 """def image_and_label_stable_queue(sess,batch_size,pixel_size,side_pixels,num_threads,database_path,num_epochs):
     Creates shuffle queue for training the network
