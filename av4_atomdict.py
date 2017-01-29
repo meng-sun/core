@@ -23,4 +23,7 @@ class atom_dictionary:
     
     ATM["p"] = 6; ATM["s"] = 6; # FIXME S is not really equal to P
      
-    ATM["b"] = 7; ATM["xx"] = 7; ATM["mg"] = 7; ATM["zn"] = 7; ATM["fe"] = 7; ATM["se"] = 7; ATM["v"] = 7; ATM["sg"] = 7; ATM["si"] = 7;
+
+    
+    ATM["b"] = 7; ATM["xx"] = 7; ATM["mg"] = 7; ATM["zn"] = 7; ATM["fe"] = 7; ATM["se"] = 7; ATM["v"] = 7; ATM["sg"] = 7;
+    ATM['ni'] = 7; ATM['co'] = 7; ATM['as'] = 7; ATM['ru']=7; ATM['mn'] = 7; ATM['mo'] = 7; ATM['re'] = 7; ATM['si'] = 7;

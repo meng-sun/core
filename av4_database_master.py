@@ -51,8 +51,13 @@ def convert_database_to_av4(database_path,positives_folder,decoys_folder,recepto
     for dirpath,dirnames,filenames in os.walk(database_path +"/"+ positives_folder):
         for filename in filenames:
             if re.search('.pdb$', filename):
-
                 path_to_positive = str(os.path.abspath(dirpath) + "/" + filename)
+                
+                # if output file already generated, skip the conversion
+                path_to_pdb_subfolder = output_path + "/" + str(os.path.abspath(dirpath)).split("/")[-1]
+                ligand_output_file = path_to_pdb_subfolder + "/" + path_to_positive.split("/")[-1].split(".")[0]+'.av4'
+                if os.path.exists(ligand_output_file):
+                    continue
 
                 # find path to folder with decoys
                 path_to_decoys = re.sub(positives_folder,decoys_folder,str(os.path.abspath(dirpath)))
