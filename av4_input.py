@@ -113,7 +113,7 @@ def image_walk(coords, elements, dense_shape):
     #coords_sort_elements = tf.gather(coords_sort_x, ind_sort_elements[0])
     #coords_transpose_elements = tf.transpose(coords_sort_elements)
 
-    #sparse_tensors_by_element = tf.SparseTensor(indices=coords_sort_elements, values=coords_transpose_elements[0], shape=dense_shape)
+    #sparse_tensors_by_element = tf.SparseTensor(indices=coords_sort_elements, values=coords_transpose_elements[0]+1, shape=dense_shape)
     sparse_tensors_by_element = tf.SparseTensor(indices=coords, values=elements, shape=dense_shape)
     # TODO reshape by reference without having to write out explicitly 
     return sparse_tensors_by_element
