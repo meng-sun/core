@@ -92,7 +92,9 @@ def read_receptor_and_ligand(filename_queue,num_epochs,examples_in_database):
     ligand_file = filename_queue[1]
     serialized_ligand = tf.read_file(ligand_file)
     serialized_receptor = tf.read_file(filename_queue[2])
-
+    
+    # for epoch testing
+    global epoch_counter
     # create an epoch counter
     examples_processed = tf.Variable(0,tf.int64)
     examples_processed = examples_processed.count_up_to(num_epochs*examples_in_database)
@@ -114,19 +116,66 @@ def read_receptor_and_ligand(filename_queue,num_epochs,examples_in_database):
         return current_frame
 
     current_frame = count_frame_from_epoch(epoch_counter,ligand_labels)
-    # FIXME: why would gather sometimes return 3d and sometimes 2d array (?)
     ligand_coords = tf.gather(tf.transpose(multiframe_ligand_coords, perm=[2, 0, 1]),current_frame)
     label = tf.gather(ligand_labels,current_frame)
 
     return ligand_file,tf.squeeze(epoch_counter),tf.squeeze(label),ligand_elements,tf.squeeze(ligand_coords),receptor_elements,tf.squeeze(multiframe_receptor_coords)
 
+def image_walk(coords, elements, dense_shape):
+    """returns a sparse tensor of shape [num, dense_shape[0], dense_shape[1]...] containing only the positions 
+    corresponding to the occurrences of the atom num in elements at each num slice"""
+    # using the simpler method since atomdict has distinct values 0-7 inclusive right now
+    
+    if_merge_1 = tf.equal(1, elements) 
+    partitioned_coords_1 = tf.boolean_mask(coords, if_merge_1)
+    sparse_tensors_by_element1 = tf.SparseTensor(indices=partitioned_coords_1,values=tf.tile([1],[tf.shape(partitioned_coords_1)[0]]), shape=dense_shape)
+    
+    if_merge_2 = tf.equal(2, elements)
+    partitioned_coords_2 = tf.boolean_mask(coords, if_merge_2)
+    sparse_tensors_by_element2 = tf.sparse_concat(0, [sparse_tensors_by_element1,
+    tf.SparseTensor(indices=partitioned_coords_2,values=tf.tile([2],
+    [tf.shape(partitioned_coords_2)[0]]), shape=dense_shape)])
+    
+    if_merge_3 = tf.equal(3, elements)
+    partitioned_coords_3 = tf.boolean_mask(coords, if_merge_3)
+    sparse_tensors_by_element3 = tf.sparse_concat(0,[sparse_tensors_by_element2,
+    tf.SparseTensor(indices=partitioned_coords_3,
+    values=tf.tile([3],[tf.shape(partitioned_coords_3)[0]]), shape=dense_shape)])
 
+    if_merge_4 = tf.equal(4, elements)
+    partitioned_coords_4 = tf.boolean_mask(coords, if_merge_4)
+    sparse_tensors_by_element4 = tf.sparse_concat(0,[sparse_tensors_by_element3,
+    tf.SparseTensor(indices=partitioned_coords_4,
+    values=tf.tile([4],[tf.shape(partitioned_coords_4)[0]]), shape=dense_shape)])
+
+    if_merge_5 = tf.equal(5, elements)
+    partitioned_coords_5 = tf.boolean_mask(coords, if_merge_5)
+    sparse_tensors_by_element5 = tf.sparse_concat(0, [sparse_tensors_by_element4,
+    tf.SparseTensor(indices=partitioned_coords_5,
+    values=tf.tile([5],[tf.shape(partitioned_coords_5)[0]]), shape=dense_shape)])
+
+    if_merge_6 = tf.equal(6, elements)
+    partitioned_coords_6 = tf.boolean_mask(coords, if_merge_6)
+    sparse_tensors_by_element6 = tf.sparse_concat(0,[sparse_tensors_by_element5,
+    tf.SparseTensor(indices=partitioned_coords_6,
+    values=tf.tile([6],[tf.shape(partitioned_coords_6)[0]]), shape=dense_shape)])
+
+    if_merge_7 = tf.equal(7, elements)
+    partitioned_coords_7 = tf.boolean_mask(coords, if_merge_7)
+    sparse_tensors_by_element7 = tf.sparse_concat(0,[sparse_tensors_by_element6,
+    tf.SparseTensor(indices=partitioned_coords_7,
+    values=tf.tile([7],[tf.shape(partitioned_coords_7)[0]]), shape=dense_shape)])
+    
+    # TODO reshape by reference without having to write out explicitly 
+    sparse_tensors_by_element = tf.sparse_reshape(sparse_tensors_by_element7, [7,dense_shape[0], dense_shape[1], dense_shape[2]])
+    return sparse_tensors_by_element
+     
 def convert_protein_and_ligand_to_image(ligand_elements,ligand_coords,receptor_elements,receptor_coords,side_pixels,pixel_size):
     """Take coordinates and elements of protein and ligand and convert them into an image.
     Return image with one dimension so far."""
 
     # FIXME abandon ligand when it does not fit into the box (it's kept now)
-
+    # TODO check if indeed it breaks in the last iteration cycle when a good affine transform is found
     # max_num_attempts - maximum number of affine transforms for the ligand to be tried
     max_num_attemts = 1000
     # affine_transform_pool_size is the first(batch) dimension of tensor of transition matrices to be returned
@@ -196,15 +245,11 @@ def convert_protein_and_ligand_to_image(ligand_elements,ligand_coords,receptor_e
     #dense_complex = tf.sparse_tensor_to_dense(sparse_complex, validate_indices=False)
     sparse_complex = image_walk(complex_coords, complex_elements, [side_pixels, side_pixels, side_pixels])
 
-
-
     # FIXME: sparse_tensor_to_dense has not been properly tested.
     # FIXME: I may need to sort indices according to TF's manual on the function
     # FIXME: try to save an image and see how it looks like
 
     return sparse_complex,ligand_center_of_mass,final_transition_matrix
-
-
 
 
 def image_and_label_shuffle_queue(sess,batch_size,pixel_size,side_pixels,num_threads,database_path,num_epochs):
@@ -265,7 +310,6 @@ def single_dense_image_example(sess,batch_size,pixel_size,side_pixels,num_thread
     Creates shuffle queue for training the network
 
 
-    # TODO: add epoch counter
     # create a list of files in the database
     index_list,ligand_file_list,receptor_file_list = index_the_database(database_path)
 
@@ -289,10 +333,10 @@ def single_dense_image_example(sess,batch_size,pixel_size,side_pixels,num_thread
             sess.run(var)
         except tf.errors.FailedPreconditionError:
             uninitialized_vars.append(var)
-
+    sess.run(tf.local_variables_initializer())
     init_new_vars_op = tf.variables_initializer(uninitialized_vars)
     sess.run(init_new_vars_op)
-
+    
     # create a batch of proteins and ligands to read them together
     multithread_batch = tf.train.batch([current_epoch, label, dense_complex], batch_size, num_threads=num_threads,capacity=batch_size * 3,shapes=[[], [], [side_pixels, side_pixels, side_pixels]])
 
